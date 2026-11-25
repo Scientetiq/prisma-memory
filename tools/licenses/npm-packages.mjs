@@ -36,10 +36,10 @@ const HEAD = [
 // `licence`, the terms of the LICENSE file, and --check expects it; --verify-installed expects the installed
 // package.json to state `declared`. Key: name, "@", version. Each entry was read by hand in the package's LICENSE file.
 const OVERRIDES = new Map([
-  ["@modelcontextprotocol/client@2.3.0", { licence: "Apache-2.0 AND MIT", declared: "Apache-2.0" }],
-  ["@modelcontextprotocol/core@2.3.0", { licence: "Apache-2.0 AND MIT", declared: "Apache-2.0" }],
-  ["@modelcontextprotocol/node@2.1.0", { licence: "Apache-2.0 AND MIT", declared: "MIT" }],
-  ["@modelcontextprotocol/server@2.3.0", { licence: "Apache-2.0 AND MIT", declared: "Apache-2.0" }],
+  ["@modelcontextprotocol/client@2.4.0", { licence: "Apache-2.0 AND MIT", declared: "Apache-2.0" }],
+  ["@modelcontextprotocol/core@2.4.0", { licence: "Apache-2.0 AND MIT", declared: "Apache-2.0" }],
+  ["@modelcontextprotocol/node@2.1.2", { licence: "Apache-2.0 AND MIT", declared: "Apache-2.0" }],
+  ["@modelcontextprotocol/server@2.4.0", { licence: "Apache-2.0 AND MIT", declared: "Apache-2.0" }],
 ]);
 
 function fail(message, code = 1) {

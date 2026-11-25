@@ -1,6 +1,6 @@
 {
   "name": "@memory/db",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "license": "LicenseRef-Prisma-Memory",
   "description": "Drizzle schema generated from contracts/schema/*.sql (the DDL is the source of truth), and custom pgvector/tsvector/bytea types",

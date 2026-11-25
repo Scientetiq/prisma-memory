@@ -4,6 +4,29 @@ All notable changes to Prisma Memory are recorded in this file. The project uses
 Changes to the MCP tool contract and the REST API are recorded per contract version in
 [`contracts/MCP-CHANGELOG.md`](contracts/MCP-CHANGELOG.md).
 
+## 0.1.1 — 25 November 2026
+
+Maintenance release: dependency updates that clear the known advisories, and a smaller admin panel image. Nothing
+changes in how Prisma Memory is used or configured.
+
+To move an installation of 0.1.0 to this release, check out the tag `v0.1.1` in the same folder and run
+`deploy/compose/setup upgrade` ([upgrade](docs/installation.md#upgrade-and-backup)).
+
+### Changed
+
+- The admin panel image is built in two stages and holds only the packages the panel needs to run; the test tooling
+  is no longer in the image.
+- `@hono/node-server` 2.1.11, with the MCP SDK 2.4.0 and `@modelcontextprotocol/node` 2.1.2 that it requires.
+- Development tooling: `vitest` 4.1.12 and `vite` 7.3.8; the `esbuild` copy under the database tooling is 0.25.12.
+
+### Known limitations
+
+- Two packages under the storage client `minio` 8.0.7 (its newest release) still carry advisories: `stream-json`
+  1.9.1 and `decode-uri-component` 0.2.2. `minio` cannot load their fixed versions. Prisma Memory does not call the
+  affected code: it never listens to bucket notifications, and `minio` only builds query strings with these packages,
+  it does not parse them.
+- The limitations listed under 0.1.0 still apply.
+
 ## 0.1.0 — 24 November 2026
 
 First public release of a self-hosted memory server for AI agents. Agents look up stored documents, meetings and

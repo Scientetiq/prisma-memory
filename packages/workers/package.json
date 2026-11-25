@@ -1,6 +1,6 @@
 {
   "name": "@memory/workers",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "license": "LicenseRef-Prisma-Memory",
   "type": "module",
@@ -11,10 +11,10 @@
     "@memory/connectors": "workspace:*",
     "@memory/i18n": "workspace:*",
     "@memory/shared": "workspace:*",
-    "@modelcontextprotocol/client": "2.3.0",
+    "@modelcontextprotocol/client": "2.4.0",
     "minio": "^8.0.5",
     "pg-boss": "^12.33.0",
     "tsx": "^4.20.0"
   },
-  "devDependencies": { "@types/node": "^24.0.0", "typescript": "^5.9.0", "vitest": "^3.2.0" }
+  "devDependencies": { "@types/node": "^24.0.0", "typescript": "^5.9.0", "vitest": "^4.1.12" }
 }

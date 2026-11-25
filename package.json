@@ -1,6 +1,6 @@
 {
   "name": "prisma-memory",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "license": "LicenseRef-Prisma-Memory",
   "description": "Prisma Memory for AI agents: MCP and REST gateway, pipeline workers, schema of four databases, admin panel",
@@ -23,9 +23,11 @@
   "pnpm": {
     "ignoredOptionalDependencies": ["sharp"],
     "overrides": {
+      "esbuild@<0.25.0": "0.25.12",
       "fast-uri@<3.1.9": "3.1.9",
       "fast-xml-parser@<5.12.0": "5.12.0",
       "source-map-js@<1.2.2": "1.2.2",
+      "vite@<7.3.7": "7.3.8",
       "zod@<4.6.6": "4.6.6"
     }
   }

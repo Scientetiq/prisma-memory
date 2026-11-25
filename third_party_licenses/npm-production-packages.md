@@ -37,11 +37,11 @@ Packages: 144. Licences: MIT 117, ISC 8, Apache-2.0 5, Apache-2.0 AND MIT 4, BSD
 | `@esbuild/win32-arm64` | 0.28.2 | MIT |
 | `@esbuild/win32-ia32` | 0.28.2 | MIT |
 | `@esbuild/win32-x64` | 0.28.2 | MIT |
-| `@hono/node-server` | 1.19.19 | MIT |
-| `@modelcontextprotocol/client` | 2.3.0 | Apache-2.0 AND MIT |
-| `@modelcontextprotocol/core` | 2.3.0 | Apache-2.0 AND MIT |
-| `@modelcontextprotocol/node` | 2.1.0 | Apache-2.0 AND MIT |
-| `@modelcontextprotocol/server` | 2.3.0 | Apache-2.0 AND MIT |
+| `@hono/node-server` | 2.1.11 | MIT |
+| `@modelcontextprotocol/client` | 2.4.0 | Apache-2.0 AND MIT |
+| `@modelcontextprotocol/core` | 2.4.0 | Apache-2.0 AND MIT |
+| `@modelcontextprotocol/node` | 2.1.2 | Apache-2.0 AND MIT |
+| `@modelcontextprotocol/server` | 2.4.0 | Apache-2.0 AND MIT |
 | `@next/env` | 16.4.6 | MIT |
 | `@next/swc-darwin-arm64` | 16.4.6 | MIT |
 | `@next/swc-darwin-x64` | 16.4.6 | MIT |
