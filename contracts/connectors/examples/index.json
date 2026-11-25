@@ -1,0 +1,240 @@
+{
+  "description": "Worked examples of the connectors contract. Each entry names the schema (by `$id`, with an optional `#/$defs/…`) that the file is checked against; an invalid example names the JSON pointer where it fails (`problem`). The maintainers' contract checks check every entry.",
+  "examples": [
+    {
+      "file": "document-text.json",
+      "schema": "https://memory.internal/connectors/schemas/item.schema.json",
+      "valid": true,
+      "title": "Document with text"
+    },
+    {
+      "file": "document-base64.json",
+      "schema": "https://memory.internal/connectors/schemas/item.schema.json",
+      "valid": true,
+      "title": "Document with file bytes"
+    },
+    {
+      "file": "meeting-text.json",
+      "schema": "https://memory.internal/connectors/schemas/item.schema.json",
+      "valid": true,
+      "title": "Meeting with a text transcript"
+    },
+    {
+      "file": "meeting-segments.json",
+      "schema": "https://memory.internal/connectors/schemas/item.schema.json",
+      "valid": true,
+      "title": "Meeting with transcript segments"
+    },
+    {
+      "file": "note.json",
+      "schema": "https://memory.internal/connectors/schemas/item.schema.json",
+      "valid": true,
+      "title": "Plain note"
+    },
+    {
+      "file": "note-decision.json",
+      "schema": "https://memory.internal/connectors/schemas/item.schema.json",
+      "valid": true,
+      "title": "Decision note with a reference"
+    },
+    {
+      "file": "entity-company.json",
+      "schema": "https://memory.internal/connectors/schemas/item.schema.json",
+      "valid": true,
+      "title": "Company of a CRM"
+    },
+    {
+      "file": "entity-with-attrs.json",
+      "schema": "https://memory.internal/connectors/schemas/item.schema.json",
+      "valid": true,
+      "title": "Deal with attributes"
+    },
+    {
+      "file": "delete-document.json",
+      "schema": "https://memory.internal/connectors/schemas/item.schema.json",
+      "valid": true,
+      "title": "Document deleted in the source"
+    },
+    {
+      "file": "delete-entity.json",
+      "schema": "https://memory.internal/connectors/schemas/item.schema.json",
+      "valid": true,
+      "title": "Entity deleted in the source"
+    },
+    {
+      "file": "webhook-request-mixed.json",
+      "schema": "https://memory.internal/connectors/schemas/webhook-request.schema.json",
+      "valid": true,
+      "title": "Webhook body with three items"
+    },
+    {
+      "file": "webhook-response-accepted.json",
+      "schema": "https://memory.internal/connectors/schemas/webhook-response.schema.json",
+      "valid": true,
+      "title": "202: items staged"
+    },
+    {
+      "file": "webhook-response-duplicate.json",
+      "schema": "https://memory.internal/connectors/schemas/webhook-response.schema.json",
+      "valid": true,
+      "title": "200: event seen before"
+    },
+    {
+      "file": "item-state-held.json",
+      "schema": "https://memory.internal/connectors/schemas/webhook-response.schema.json#/$defs/ItemState",
+      "valid": true,
+      "title": "Item held: consent changed"
+    },
+    {
+      "file": "item-state-delivered.json",
+      "schema": "https://memory.internal/connectors/schemas/webhook-response.schema.json#/$defs/ItemState",
+      "valid": true,
+      "title": "Item delivered as a record"
+    },
+    {
+      "file": "manifest-webhook.json",
+      "schema": "https://memory.internal/connectors/schemas/manifest.schema.json",
+      "valid": true,
+      "title": "Manifest of the generic webhook kind"
+    },
+    {
+      "file": "manifest-pull.json",
+      "schema": "https://memory.internal/connectors/schemas/manifest.schema.json",
+      "valid": true,
+      "title": "Manifest of a pull kind with a secret"
+    },
+    {
+      "file": "external-id-control.json",
+      "schema": "https://memory.internal/connectors/schemas/item.schema.json",
+      "valid": false,
+      "problem": "/external_id",
+      "title": "External id with a NUL character"
+    },
+    {
+      "file": "external-id-201.json",
+      "schema": "https://memory.internal/connectors/schemas/item.schema.json",
+      "valid": false,
+      "problem": "/external_id",
+      "title": "External id longer than 200 characters"
+    },
+    {
+      "file": "title-newline.json",
+      "schema": "https://memory.internal/connectors/schemas/item.schema.json",
+      "valid": false,
+      "problem": "/title",
+      "title": "Title with a line break"
+    },
+    {
+      "file": "title-trailing-newline.json",
+      "schema": "https://memory.internal/connectors/schemas/item.schema.json",
+      "valid": false,
+      "problem": "/title",
+      "title": "Title ending with a line break"
+    },
+    {
+      "file": "url-javascript.json",
+      "schema": "https://memory.internal/connectors/schemas/item.schema.json",
+      "valid": false,
+      "problem": "/url",
+      "title": "Link with a script scheme"
+    },
+    {
+      "file": "url-userinfo.json",
+      "schema": "https://memory.internal/connectors/schemas/item.schema.json",
+      "valid": false,
+      "problem": "/url",
+      "title": "Link with user information"
+    },
+    {
+      "file": "entity-kind-person.json",
+      "schema": "https://memory.internal/connectors/schemas/item.schema.json",
+      "valid": false,
+      "problem": "/kind",
+      "title": "Entity of kind person"
+    },
+    {
+      "file": "entity-kind-project.json",
+      "schema": "https://memory.internal/connectors/schemas/item.schema.json",
+      "valid": false,
+      "problem": "/kind",
+      "title": "Entity of kind project"
+    },
+    {
+      "file": "ref-system-people.json",
+      "schema": "https://memory.internal/connectors/schemas/item.schema.json",
+      "valid": false,
+      "problem": "/entities/0",
+      "title": "Reference into the people directory"
+    },
+    {
+      "file": "ref-system-trailing-newline.json",
+      "schema": "https://memory.internal/connectors/schemas/item.schema.json",
+      "valid": false,
+      "problem": "/entities/0",
+      "title": "System code ending with a line break"
+    },
+    {
+      "file": "document-text-and-base64.json",
+      "schema": "https://memory.internal/connectors/schemas/item.schema.json",
+      "valid": false,
+      "problem": "",
+      "title": "Document with both bodies"
+    },
+    {
+      "file": "document-no-body.json",
+      "schema": "https://memory.internal/connectors/schemas/item.schema.json",
+      "valid": false,
+      "problem": "",
+      "title": "Document without a body"
+    },
+    {
+      "file": "meeting-no-transcript.json",
+      "schema": "https://memory.internal/connectors/schemas/item.schema.json",
+      "valid": false,
+      "problem": "",
+      "title": "Meeting without a transcript"
+    },
+    {
+      "file": "participant-empty.json",
+      "schema": "https://memory.internal/connectors/schemas/item.schema.json",
+      "valid": false,
+      "problem": "/participants/0",
+      "title": "Participant without name and e-mail"
+    },
+    {
+      "file": "unknown-property.json",
+      "schema": "https://memory.internal/connectors/schemas/item.schema.json",
+      "valid": false,
+      "problem": "/participants/0",
+      "title": "Participant with a field the contract does not name"
+    },
+    {
+      "file": "request-0-items.json",
+      "schema": "https://memory.internal/connectors/schemas/webhook-request.schema.json",
+      "valid": false,
+      "problem": "/items",
+      "title": "Webhook body without items"
+    },
+    {
+      "file": "request-51-items.json",
+      "schema": "https://memory.internal/connectors/schemas/webhook-request.schema.json",
+      "valid": false,
+      "problem": "/items",
+      "title": "Webhook body with 51 items"
+    },
+    {
+      "file": "manifest-actions.json",
+      "schema": "https://memory.internal/connectors/schemas/manifest.schema.json",
+      "valid": false,
+      "problem": "/capabilities",
+      "title": "Manifest that declares outbound actions"
+    },
+    {
+      "file": "entity-attrs-reserved.json",
+      "schema": "https://memory.internal/connectors/schemas/item.schema.json",
+      "valid": false,
+      "problem": "/attrs",
+      "title": "Entity with a reserved attribute"
+    }
+  ]
+}

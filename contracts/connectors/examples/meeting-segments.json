@@ -1,0 +1,28 @@
+{
+  "type": "meeting",
+  "external_id": "rec-55",
+  "external_version": "2",
+  "started_at": "2026-10-04T14:00:00+01:00",
+  "language": "en-GB",
+  "entities": [
+    {
+      "email": "sam@example.com"
+    }
+  ],
+  "transcript": {
+    "segments": [
+      {
+        "start_sec": 0,
+        "end_sec": 4.5,
+        "speaker": "S1",
+        "text": "Let us start."
+      },
+      {
+        "start_sec": 4.5,
+        "end_sec": 9,
+        "speaker": null,
+        "text": "The budget is approved."
+      }
+    ]
+  }
+}

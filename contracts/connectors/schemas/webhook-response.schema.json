@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://memory.internal/connectors/schemas/webhook-response.schema.json",
+  "title": "webhook-response",
+  "description": "Answers of the hooks routes. They name items and states, never content.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/Accepted"
+    },
+    {
+      "$ref": "#/$defs/Duplicate"
+    }
+  ],
+  "$defs": {
+    "EventId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:\\-]{1,256}$",
+      "not": {
+        "pattern": "[\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029\\u202a-\\u202e\\u2066-\\u2069]"
+      },
+      "description": "The `webhook-id` of the request (or the id the receiver gave a bearer request)."
+    },
+    "ItemResult": {
+      "type": "object",
+      "required": [
+        "external_id",
+        "type",
+        "status"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "external_id": {
+          "$ref": "item.schema.json#/$defs/ExternalId"
+        },
+        "type": {
+          "$ref": "item.schema.json#/$defs/ItemType"
+        },
+        "status": {
+          "$ref": "item.schema.json#/$defs/ItemStatus"
+        },
+        "reason": {
+          "$ref": "item.schema.json#/$defs/ReasonCode"
+        }
+      }
+    },
+    "Accepted": {
+      "description": "202: the items are staged (not yet in memory).",
+      "type": "object",
+      "required": [
+        "event_id",
+        "items"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "event_id": {
+          "$ref": "#/$defs/EventId"
+        },
+        "items": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "$ref": "#/$defs/ItemResult"
+          }
+        }
+      }
+    },
+    "Duplicate": {
+      "description": "200: the event was received before; nothing was done again.",
+      "type": "object",
+      "required": [
+        "event_id",
+        "duplicate"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "event_id": {
+          "$ref": "#/$defs/EventId"
+        },
+        "duplicate": {
+          "const": true
+        }
+      }
+    },
+    "ItemState": {
+      "description": "State of one item: `GET /api/v1/hooks/{connector_id}/items/{external_id}`.",
+      "type": "object",
+      "required": [
+        "external_id",
+        "type",
+        "status"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "external_id": {
+          "$ref": "item.schema.json#/$defs/ExternalId"
+        },
+        "type": {
+          "$ref": "item.schema.json#/$defs/ItemType"
+        },
+        "status": {
+          "$ref": "item.schema.json#/$defs/ItemStatus"
+        },
+        "reason": {
+          "$ref": "item.schema.json#/$defs/ReasonCode"
+        },
+        "record_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "not": {
+            "pattern": "[\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029\\u202a-\\u202e\\u2066-\\u2069]"
+          }
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

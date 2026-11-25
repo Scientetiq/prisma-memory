@@ -1,0 +1,27 @@
+{
+  "items": [
+    {
+      "type": "note",
+      "external_id": "form-reply-301",
+      "text": "Customer asked for an on-site demo in November."
+    },
+    {
+      "type": "entity",
+      "external_id": "company:42",
+      "kind": "company",
+      "id": "42",
+      "name": "Example Industries Ltd",
+      "aliases": [
+        "Example Industries",
+        "EXI"
+      ],
+      "url": "https://crm.example.com/companies/42"
+    },
+    {
+      "type": "delete",
+      "external_id": "wiki/onboarding",
+      "of": "document",
+      "occurred_at": "2026-10-07T12:00:00Z"
+    }
+  ]
+}

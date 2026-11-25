@@ -1,0 +1,8 @@
+*
+!package.json
+!pnpm-workspace.yaml
+!pnpm-lock.yaml
+!.npmrc
+!packages/mocks/package.json
+!packages/mocks/src/model-gateway.ts
+!packages/mocks/src/model-gateway-server.ts

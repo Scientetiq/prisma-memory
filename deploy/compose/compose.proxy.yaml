@@ -1,0 +1,49 @@
+# Prisma Memory — TLS overlay for compose.yaml. `deploy/compose/setup` uses compose.yaml only.
+# For the separate-server TLS front, see deploy/front/README.md.
+# This overlay defines the service proxy (Caddy with the landed Caddyfile; the
+# host's 80 and 443 on ${MEMORY_PROXY_ADDR:-127.0.0.1} to Caddy's 8080 and 8443; certificates and the ACME account under
+# MEMORY_HOME/data/proxy, Caddy's own state under MEMORY_HOME/data/proxy-config — the two paths the image declares as
+# volumes, bound here so Docker makes no anonymous volume; the first certificate request needs the internet) and the
+# network front, which only proxy and gateway share. The panel is never behind it. YAML anchors do not cross files: the
+# hardening of compose.yaml is written out here, and a deployment test checks that it is the same.
+# Set MEMORY_FRONT_SUBNET and MEMORY_FRONT_RANGE as described in deploy/front/README.md. The
+# proxy has the network address plus 2, below ip_range, the upper half from which Docker hands out every other address.
+services:
+  gateway:
+    networks: [ front ]
+    # the https address and the proxy's address /32 as the only trusted proxy, never the subnet
+    environment:
+      MEMORY_PUBLIC_URL: ${MEMORY_PUBLIC_URL:?see deploy/front/README.md}
+      MEMORY_TRUSTED_PROXIES: ${MEMORY_TRUSTED_PROXIES:?see deploy/front/README.md}
+
+  proxy:
+    user: "${MEMORY_UID:?run deploy/compose/setup first}:${MEMORY_GID:?run deploy/compose/setup first}"
+    read_only: true
+    cap_drop: [ ALL ]
+    security_opt: [ "no-new-privileges:true" ]
+    tmpfs: [ /tmp ]
+    pids_limit: 256
+    restart: unless-stopped
+    logging: { driver: json-file, options: { max-size: "20m", max-file: "5" } }
+    profiles: [ proxy ]
+    build: { context: ../.., dockerfile: deploy/compose/images/proxy.Dockerfile }
+    image: prisma-memory-proxy:${MEMORY_VERSION:?run deploy/compose/setup first}
+    depends_on: { gateway: { condition: service_healthy } }
+    environment:
+      MEMORY_PUBLIC_DOMAIN: ${MEMORY_PUBLIC_DOMAIN:?see deploy/front/README.md}
+      MEMORY_PROXY_TLS: ${MEMORY_PROXY_TLS:?see deploy/front/README.md}
+      XDG_DATA_HOME: /data
+      XDG_CONFIG_HOME: /config
+      HOME: /tmp
+    ports:
+      - "${MEMORY_PROXY_ADDR:-127.0.0.1}:80:8080"
+      - "${MEMORY_PROXY_ADDR:-127.0.0.1}:443:8443"
+    volumes:
+      - { type: bind, source: "${MEMORY_HOME:?run deploy/compose/setup first}/data/proxy", target: /data, bind: { create_host_path: false } }
+      - { type: bind, source: "${MEMORY_HOME:?run deploy/compose/setup first}/data/proxy-config", target: /config, bind: { create_host_path: false } }
+    networks:
+      front: { ipv4_address: "${MEMORY_PROXY_IP:?see deploy/front/README.md}" }
+    mem_limit: ${MEMORY_MEM_PROXY:-128m}
+
+networks:
+  front: { enable_ipv6: false, ipam: { config: [ { subnet: "${MEMORY_FRONT_SUBNET:?see deploy/front/README.md}", ip_range: "${MEMORY_FRONT_RANGE:?see deploy/front/README.md}" } ] } }

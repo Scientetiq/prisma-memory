@@ -1,0 +1,15 @@
+# Prisma Memory — the TLS front on a server of its own (deploy/front/README.md). This file adds nothing to the front
+# but where it finds the gateway. Its one service is the service proxy of ../compose/compose.proxy.yaml, taken whole
+# with `extends`: the same recipe, the same Caddyfile (the one list of public routes), the same hardening, ports and
+# mounts. Two things differ: the dependency on a gateway container is dropped, because the gateway runs on the
+# application host, and the name `gateway` of the Caddyfile is resolved to that host's address on the private link.
+# Start it with --profile proxy and the env file the README describes. Never put a port, a mount, a route, an image or
+# a build line here: what the front may do is decided in compose.proxy.yaml and in the Caddyfile only.
+services:
+  proxy:
+    extends: { file: ../compose/compose.proxy.yaml, service: proxy }
+    depends_on: !reset {}
+    extra_hosts: [ "gateway:${MEMORY_FRONT_UPSTREAM:?the address of the application host on the private link}" ]
+
+networks:
+  front: { enable_ipv6: false, ipam: { config: [ { subnet: "${MEMORY_FRONT_SUBNET:?see deploy/front/README.md}", ip_range: "${MEMORY_FRONT_RANGE:?see deploy/front/README.md}" } ] } }

@@ -1,0 +1,29 @@
+{
+  "containers": [
+    {
+      "kind": "file",
+      "number": null,
+      "method": "ooxml",
+      "blocks": [
+        {
+          "type": "heading",
+          "level": 1,
+          "text": "Supply terms"
+        },
+        {
+          "type": "paragraph",
+          "text": "The supplier delivers the goods within 10 days."
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "Payment"
+        },
+        {
+          "type": "paragraph",
+          "text": "Payment is due within 30 days of delivery."
+        }
+      ]
+    }
+  ]
+}

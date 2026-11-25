@@ -1,0 +1,11 @@
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr)); gap: 1rem; margin-block: 1.5rem; }
+.card { min-width: 0; padding: 1rem; border: 1px solid var(--border, #d2d6dc); border-radius: .75rem; overflow-wrap: anywhere; }
+.fields { display: grid; gap: .6rem; min-width: 0; border: 0; padding: 0; margin: 0; }
+.fields input:not([type=checkbox]), .fields select { box-sizing: border-box; width: 100%; min-width: 0; }
+.fields p { margin: 0 0 .5rem; }
+.confirm { display: flex; align-items: flex-start; gap: .6rem; }
+.buttons, .links { display: flex; flex-wrap: wrap; gap: .8rem; align-items: center; margin-block: 1rem; }
+.table { overflow-x: auto; max-width: 100%; margin-block: 1rem; }
+.table table { width: 100%; border-collapse: collapse; }
+.table th, .table td { text-align: start; padding: .5rem; white-space: nowrap; }
+.table caption { text-align: start; }

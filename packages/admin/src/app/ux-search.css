@@ -1,0 +1,59 @@
+.search-form .opts > summary { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; }
+.search-form .opts > summary, details.weak > summary { list-style: none; }
+.search-form .opts > summary::-webkit-details-marker, details.weak > summary::-webkit-details-marker { display: none; }
+.search-form .opts-body { display: flex; flex-wrap: wrap; gap: 14px 16px; margin-top: 8px; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--r-m); }
+.search-form .opts-body > * { flex: 1 1 100%; min-width: 0; }
+.search-form .opts-mode { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.search-form .opts-mode .hint { margin: 0; font-size: 12.5px; }
+.search-form .opts-body .checks { margin: 0; padding: 0; }
+.search-form .opts-reset { margin: 0; font-size: 13px; }
+.search-form .opts-reset a { color: var(--blue-ink); font-weight: 500; }
+.search-form .opts-reset a:hover { text-decoration: underline; }
+
+.search-start .hint { margin: 0 0 8px; }
+.search-examples { list-style: none; display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; }
+.search-examples .chip { display: inline-flex; align-items: center; min-height: 32px; padding: 4px 12px; font-size: 13px; font-weight: 500; color: var(--text); background: var(--bg); border: 1px solid var(--line-int); }
+.search-examples .chip:hover { background: var(--hover); }
+
+.search-hits { gap: 2px; }
+.search-hits .hit { position: relative; padding: 10px 12px; margin: 0 -12px; border-radius: var(--r-m); transition: background 120ms; }
+.search-hits .hit:hover { background: #FAFAFA; }
+.search-hits .hit h3 { margin: 0 0 4px; }
+.search-hits .hit-link { color: var(--text); }
+.search-hits .hit-link::after { content: ""; position: absolute; inset: 0; border-radius: var(--r-m); }
+.search-hits .hit-link:focus-visible { outline: none; }
+.search-hits .hit-link:focus-visible::after { outline: 2px solid var(--blue-ink); outline-offset: -2px; }
+.search-hits .hit:hover .hit-link { text-decoration: underline; }
+.search-hits .hit .meta { gap: 4px 8px; margin: 0; }
+.search-hits .hit .meta .dot { color: var(--line-int); }
+.search-hits .hit .meta .hit-kind { display: inline-flex; align-items: center; gap: 4px; font-weight: 500; color: var(--text); }
+.search-hits .hit .meta .hit-kind svg.ic { width: 13px; height: 13px; }
+.search-hits .hit .meta .acc, .search-hits .hit .meta .chip { position: relative; z-index: 1; }
+.search-hits .hit .snip { white-space: normal; }
+.search-hits mark { background: var(--amber-soft); color: inherit; border-radius: 2px; padding: 0 1px; }
+details.weak { margin-top: 10px; }
+details.weak > summary { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; font-size: 13.5px; font-weight: 500; color: var(--blue-ink); cursor: pointer; }
+details.weak > summary:hover { text-decoration: underline; }
+details.weak > .search-hits { margin-top: 6px; }
+
+.rec-path { display: flex; flex-wrap: wrap; align-items: center; gap: 0 6px; min-height: 32px; margin: -6px 0 10px; font-size: 13px; font-weight: 500; color: var(--text-2); }
+.rec-path a { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; color: var(--text-2); overflow-wrap: anywhere; }
+.rec-path a svg.ic { width: 15px; height: 15px; }
+.rec-path a:hover { color: var(--text); text-decoration: underline; text-underline-offset: 2px; }
+.rec-path .rec-trail { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0 6px; min-width: 0; }
+.rec-path .rec-sep { color: var(--text-2); }
+.prose p.ts-hit { background: var(--brand-soft); border-radius: 4px; box-shadow: 0 0 0 4px var(--brand-soft); }
+.ts-beyond { margin: 8px 0; }
+
+@media (max-width: 480px) {
+  .search-form .q .btn, .search-form .opts > summary, .search-form .opts-body .check, .search-form .opts-reset a { min-height: 44px; }
+  .search-form .opts > summary { padding: 0 2px; }
+  .search-form .opts-body .check { display: flex; align-items: center; }
+  .search-form .opts-body .check input { width: 20px; height: 20px; }
+  .search-form .opts-reset a { display: inline-flex; align-items: center; }
+  .search-form .seg { flex-direction: column; width: 100%; }
+  .search-form .seg label { min-height: 44px; border-right: none; border-bottom: 1px solid var(--line); }
+  .search-form .seg label:last-child { border-bottom: none; }
+  .search-examples .chip, details.weak > summary { min-height: 44px; }
+}
+@media (prefers-reduced-motion: reduce) { .search-hits .hit { transition: none; } }

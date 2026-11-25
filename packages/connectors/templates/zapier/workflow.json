@@ -1,0 +1,151 @@
+{
+  "platform": "zapier",
+  "format": "setup-recipe",
+  "version": 1,
+  "importable": false,
+  "verification": "Signing code tested against the real handler; platform runtime not verified live.",
+  "variants": [
+    {
+      "id": "mail",
+      "source_fields": {
+        "id": "stable source item id",
+        "text": "plain text body",
+        "subject": "optional title"
+      },
+      "steps": [
+        {
+          "action": "trigger",
+          "source": "new email",
+          "id": "trigger"
+        },
+        {
+          "action": "sign",
+          "script": "sign.js",
+          "operation": "post",
+          "inputs": [
+            "base_url",
+            "connector_id",
+            "signing_secret",
+            "event_id",
+            "variant",
+            "source"
+          ],
+          "id": "sign"
+        },
+        {
+          "action": "http",
+          "method": "POST",
+          "url": "sign.url",
+          "headers": "sign.headers",
+          "body": "sign.body",
+          "body_mode": "raw",
+          "follow_redirects": false,
+          "accept": [
+            200,
+            202
+          ],
+          "id": "post"
+        },
+        {
+          "action": "delay",
+          "seconds": 10,
+          "id": "delay"
+        },
+        {
+          "action": "sign",
+          "script": "sign.js",
+          "operation": "status",
+          "inputs": [
+            "base_url",
+            "connector_id",
+            "signing_secret",
+            "event_id",
+            "external_id",
+            "type"
+          ],
+          "id": "status_sign"
+        },
+        {
+          "action": "http",
+          "method": "GET",
+          "url": "status_sign.url",
+          "headers": "status_sign.headers",
+          "body": "",
+          "follow_redirects": false,
+          "id": "get"
+        }
+      ]
+    },
+    {
+      "id": "form",
+      "source_fields": {
+        "id": "stable source item id",
+        "text": "plain text body",
+        "title": "optional title"
+      },
+      "steps": [
+        {
+          "action": "trigger",
+          "source": "new form submission",
+          "id": "trigger"
+        },
+        {
+          "action": "sign",
+          "script": "sign.js",
+          "operation": "post",
+          "inputs": [
+            "base_url",
+            "connector_id",
+            "signing_secret",
+            "event_id",
+            "variant",
+            "source"
+          ],
+          "id": "sign"
+        },
+        {
+          "action": "http",
+          "method": "POST",
+          "url": "sign.url",
+          "headers": "sign.headers",
+          "body": "sign.body",
+          "body_mode": "raw",
+          "follow_redirects": false,
+          "accept": [
+            200,
+            202
+          ],
+          "id": "post"
+        },
+        {
+          "action": "delay",
+          "seconds": 10,
+          "id": "delay"
+        },
+        {
+          "action": "sign",
+          "script": "sign.js",
+          "operation": "status",
+          "inputs": [
+            "base_url",
+            "connector_id",
+            "signing_secret",
+            "event_id",
+            "external_id",
+            "type"
+          ],
+          "id": "status_sign"
+        },
+        {
+          "action": "http",
+          "method": "GET",
+          "url": "status_sign.url",
+          "headers": "status_sign.headers",
+          "body": "",
+          "follow_redirects": false,
+          "id": "get"
+        }
+      ]
+    }
+  ]
+}

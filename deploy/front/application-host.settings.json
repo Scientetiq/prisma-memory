@@ -1,0 +1,9 @@
+{
+  "format": "prisma-provision/1",
+  "$comment": "Settings of the APPLICATION host when the TLS front runs on another server (deploy/front/README.md, step 2). Copy this file, replace the three example values, and apply the copy on the application host: deploy/bin/memory-admin provision apply - < my-front.settings.json (add --dry-run first to see what would be written). access.trusted_proxies holds exactly one entry: the front host's own address on the private link with /32 — never a network, never a second address, never an address of a Docker bridge. access.external_hosts holds the public name the front serves. access.cloud_agent_base_url is the https address of that name. Each item is written only where nobody has changed the setting; a kept item is listed with the reason — read that list before you go on.",
+  "items": [
+    { "category": "access", "key": "trusted_proxies", "value": ["198.51.100.20/32"] },
+    { "category": "access", "key": "external_hosts", "value": ["memory.example.com"] },
+    { "category": "access", "key": "cloud_agent_base_url", "value": "https://memory.example.com" }
+  ]
+}

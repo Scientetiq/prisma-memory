@@ -1,0 +1,198 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://memory.internal/connectors/schemas/item.schema.json",
+  "title": "item",
+  "description": "One normalised item that a connector delivers: a document, a meeting, a note, an entity of an external system, or the deletion of one of them in the source. The field `type` selects the shape.",
+  "type": "object",
+  "required": [
+    "type"
+  ],
+  "oneOf": [
+    {
+      "$ref": "document.schema.json"
+    },
+    {
+      "$ref": "meeting.schema.json"
+    },
+    {
+      "$ref": "note.schema.json"
+    },
+    {
+      "$ref": "entity.schema.json"
+    },
+    {
+      "$ref": "delete.schema.json"
+    }
+  ],
+  "$defs": {
+    "ExternalId": {
+      "description": "The id of the item in the source, unique inside the connector per type.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "not": {
+        "pattern": "[\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029\\u202a-\\u202e\\u2066-\\u2069]"
+      }
+    },
+    "ExternalVersion": {
+      "description": "Opaque version of the item in the source (a revision, an etag).",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "not": {
+        "pattern": "[\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029\\u202a-\\u202e\\u2066-\\u2069]"
+      }
+    },
+    "Title": {
+      "description": "One line, shown to people and agents.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300,
+      "not": {
+        "pattern": "[\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029\\u202a-\\u202e\\u2066-\\u2069]"
+      }
+    },
+    "Timestamp": {
+      "description": "RFC 3339 date-time with an explicit offset.",
+      "type": "string",
+      "maxLength": 40,
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,9})?(Z|[+-][0-9]{2}:[0-9]{2})$",
+      "not": {
+        "pattern": "[\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029\\u202a-\\u202e\\u2066-\\u2069]"
+      }
+    },
+    "Url": {
+      "description": "Provenance link: http or https, no user information, printable ASCII (percent-encode the rest).",
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 2048,
+      "pattern": "^https?://[A-Za-z0-9.\\-\\[\\]:]+([/?#][\\u0021-\\u007e]*)?$",
+      "not": {
+        "pattern": "[\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029\\u202a-\\u202e\\u2066-\\u2069]"
+      }
+    },
+    "System": {
+      "description": "Code of an external system (`crm`, `tracker`). The codes of people and of memory itself are refused.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{1,31}$",
+      "not": {
+        "anyOf": [
+          {
+            "pattern": "[\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029\\u202a-\\u202e\\u2066-\\u2069]"
+          },
+          {
+            "enum": [
+              "people",
+              "memory",
+              "person",
+              "project",
+              "ext"
+            ]
+          }
+        ]
+      }
+    },
+    "EntityKind": {
+      "description": "Kind of an external entity. People come from the directory and projects are spaces, so `person` and `project` are not kinds a connector delivers.",
+      "type": "string",
+      "enum": [
+        "company",
+        "deal",
+        "contact",
+        "task",
+        "document",
+        "other"
+      ]
+    },
+    "Email": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 200,
+      "pattern": "^[^@\\u0020]+@[^@\\u0020]+$",
+      "not": {
+        "pattern": "[\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029\\u202a-\\u202e\\u2066-\\u2069]"
+      }
+    },
+    "EntityRef": {
+      "description": "A reference to an entity of an external system, or to a person by e-mail.",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "system",
+            "kind",
+            "id"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "system": {
+              "$ref": "#/$defs/System"
+            },
+            "kind": {
+              "$ref": "#/$defs/EntityKind"
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "not": {
+                "pattern": "[\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029\\u202a-\\u202e\\u2066-\\u2069]"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "email"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "email": {
+              "$ref": "#/$defs/Email"
+            }
+          }
+        }
+      ]
+    },
+    "Entities": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "$ref": "#/$defs/EntityRef"
+      }
+    },
+    "ItemType": {
+      "description": "Type of the item key: `(connector, type, external_id)`. A `delete` item names it in `of`.",
+      "type": "string",
+      "enum": [
+        "document",
+        "meeting",
+        "note",
+        "entity"
+      ]
+    },
+    "ItemStatus": {
+      "type": "string",
+      "enum": [
+        "staged",
+        "delivering",
+        "delivered",
+        "unchanged",
+        "held",
+        "skipped",
+        "failed",
+        "deleted_at_source"
+      ]
+    },
+    "ReasonCode": {
+      "description": "Stable code of a held, skipped or failed item (`space_denied`, `upload_daily`, `entity_scope`); a sub-code after a colon.",
+      "type": "string",
+      "maxLength": 64,
+      "pattern": "^[a-z][a-z0-9_]*(:[a-z0-9_]+)?$",
+      "not": {
+        "pattern": "[\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029\\u202a-\\u202e\\u2066-\\u2069]"
+      }
+    }
+  }
+}

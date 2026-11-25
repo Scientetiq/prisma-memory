@@ -1,0 +1,1206 @@
+#!/bin/sh
+# setup — install Prisma Memory on this server with one command.
+#
+#   deploy/compose/setup [--demo] [--profile internal-http --publish ADDR] [--home DIR] [--instance NAME] [--offline KIT] [--yes]
+#   deploy/compose/setup --check [the same options]   only step 1: exit 0 when every check passes, 3 when one fails;
+#                                                    it writes nothing (no .env, no MEMORY_HOME, no lock, no staging file)
+#
+# What it does, in this order; each step can be run again and changes nothing that already exists:
+#   1. checks, read-only: Docker >= 24 with Compose >= 2.40.3 (minimum known to work), access to the daemon,
+#      RAM + swap >= 7 GB, 20 GB free, openssl, mktemp, flock, ss, cmp and free,
+#      no override file next to compose.yaml, MEMORY_HOME outside this clone and no other clone's home (the file
+#      .setup-tree in it names the compose folder that owns it), the compose project is not another folder's, the two
+#      ports are free, every existing directory and secret file has the right owner, mode and form.
+#      Any problem: exit 3 and nothing was changed;
+#   2. deploy/compose/.env (mode 0600): only the keys that are missing are added; it never holds a secret;
+#   3. the directories under MEMORY_HOME (0700) and the secret files (0400), made once with `openssl rand`. A value goes
+#      from openssl's output straight into its file: it is never in a shell variable, an argument or the environment.
+#      Once the database exists (data/pg/PG_VERSION) setup makes no secret at all: a missing file is a refusal;
+#   4. the storage accounts (data/s3-iam/users.json), the images (built here), db and s3, the two buckets with their
+#      owners, the schema (job migrate), gateway, workers and web;
+#   5. the storage settings through the administrator's command line (deploy/bin/memory-admin provision apply -), then
+#      the storage isolation check: setup stops unless the gateway reports `storage_isolation` ok;
+#   6. a summary of `Label: value` lines. It never prints a secret, the install code included: it names the file.
+#
+# Every Docker call is `docker compose --project-directory D -f D/compose.yaml --env-file D/.env …` with the inherited
+# COMPOSE_FILE, COMPOSE_PROFILES, COMPOSE_PROJECT_NAME and COMPOSE_ENV_FILES removed, so nothing outside this folder
+# changes what is started. An online run downloads, through Docker alone, the base images of the image recipes
+# (Node.js, PostgreSQL with pgvector) and the storage server's image from Docker Hub and, inside the image build, pnpm
+# (through Corepack) and the packages of pnpm-lock.yaml from the npm registry; setup makes no other connection.
+# Run as root, every file belongs to uid 10001 and the home is /var/lib/prisma-memory.
+# With --offline KIT nothing is built or pulled: the images come from a kit of tools/release/offline-kit.sh, checked first.
+#
+#   deploy/compose/setup upgrade [--yes] [--offline KIT] [--home DIR] [--instance NAME]
+#   deploy/compose/setup upgrade --rollback [--yes] [--home DIR] [--instance NAME]
+# upgrade moves an installation to the version of this tree (checked out in the same folder): the checks of step 1,
+# the new images while the installation still runs, then it stops every service, copies data/pg and .env to
+# MEMORY_HOME/upgrade/<UTC time>-from-<version>/, names the new version in .env and starts as an install does. A failure
+# after the copy puts the copy and the old .env back and starts the old images again (no build); nothing is deleted.
+# --rollback does the same on demand, from the unfinished upgrade or from the newest finished one.
+# Later commands (`status`, `backup`, `restore`, `--domain`) are not in this release.
+#
+# Exit code: 0 done (with --check: every check passed; upgrade: also "nothing to upgrade"); 1 failed in the middle (run
+# it again: it continues and regenerates nothing; a failed upgrade is rolled back first); 2 wrong call; 3 refused by
+# the checks, nothing changed.
+# Run the whole installer in a fresh process environment. Keep only the executable search path, the user's home
+# (for the documented default) and the temporary directory. No inherited MEMORY_*, COMPOSE_*, Docker context,
+# proxy, shell-local variable or exported function can change the inputs checked below.
+trace=""
+case $- in *x*) trace=-x ;; esac
+# The program itself arrives on stdin below; a terminal on the original stdin stays reachable as descriptor 8 for the
+# one question of `setup upgrade`.
+if [ -t 0 ]; then exec 8<&0; fi
+# shellcheck disable=SC2086 # trace is empty or one shell option; the quoted here-document is the complete program
+exec env -i PATH="$PATH" HOME="${HOME:-}" TMPDIR="${TMPDIR:-/tmp}" /bin/sh $trace -s -- "$0" "$@" <<'SETUP_CLEAN_ENV'
+set -eu
+umask 077
+LC_ALL=C
+export LC_ALL
+# Staging paths belong to this run; the lock inode and its recovery markers remain in place.
+SECRET_TMP=""; ENV_TMP=""; COMPOSE_TMP=""; IAM_TMP=""; BUCKET_TMP=""; PROVISION_TMP=""
+PRODUCT_STARTED=0; ISOLATION_MARKER=""; PRODUCT_SERVICES="gateway workers web"; CHECKING=0
+# upgrade: UP_STAGE is empty, stopping (services stop, no data changed yet), saved (the copy exists: any exit rolls
+# back), rolling (the rollback runs) or done
+UPGRADING=0; UP_STAGE=""; UP_DIR=""; UP_F=""; UP_OLD_V=""; UP_OLD_C=""; IMAGES_READY=0; YES=0
+FAIL_HINT='run setup again to continue; nothing that exists is made again.'
+cleanup() {
+  if [ "$PRODUCT_STARTED" = 1 ]; then
+    # stop also disables unless-stopped restarts; db and s3 remain available for diagnosis and the next run.
+    # shellcheck disable=SC2086 # the fixed service list, plus demo-models only when setup starts it
+    if dc stop $PRODUCT_SERVICES; then
+      printf 'Isolation: blocked; gateway, workers and web stopped; marker: %s; fix the cause and run setup again\n' "$ISOLATION_MARKER"
+    else
+      printf 'Isolation: blocked; could not stop the product; marker: %s; stop gateway, workers and web before using this install\n' "$ISOLATION_MARKER" >&2
+    fi
+  fi
+  [ -z "$SECRET_TMP" ] || rm -f "$SECRET_TMP"
+  [ -z "$ENV_TMP" ] || rm -f "$ENV_TMP"
+  [ -z "$COMPOSE_TMP" ] || rm -f "$COMPOSE_TMP"
+  [ -z "$IAM_TMP" ] || rm -f "$IAM_TMP"
+  [ -z "$BUCKET_TMP" ] || rm -f "$BUCKET_TMP"
+  [ -z "$PROVISION_TMP" ] || rm -f "$PROVISION_TMP"
+  return 0
+}
+# An exit the checks did not choose (set -e, set -u, an arithmetic error: a crashing helper) is a refusal too: 3, never
+# 0, 1 or 2. bash 3.2 as sh reports status 0 after a fatal expansion error, so the flag decides, not the status.
+on_exit() {
+  rc=$?
+  # a rollback stops every service itself
+  case "$UP_STAGE" in stopping|saved) PRODUCT_STARTED=0 ;; esac
+  cleanup
+  case "$UP_STAGE" in stopping) upgrade_restart_old ;; saved) upgrade_rollback auto ;; esac
+  [ "$CHECKING" = 1 ] || return 0
+  if [ "$rc" != 3 ]; then
+    printf 'setup: refused: a check stopped unexpectedly (status %s; the line above names it)\n' "$rc" >&2
+    printf 'setup: nothing was changed.\n' >&2
+  fi
+  exit 3
+}
+trap on_exit 0
+trap 'CHECKING=0; exit 1' 1 2 15
+# A check of step 1 (preflight, so --check gives the same answer), also run before the lock directory is made.
+need_flock() { command -v flock >/dev/null 2>&1 || refuse "flock is not installed: setup needs an OS lock that releases after an interrupted run"; }
+lock_install() {
+  need_flock
+  # Keep the inode in place: unlinking a flock file would allow two holders on different inodes.
+  # An empty directory left by an older setup is reusable without guessing whether a PID was recycled.
+  [ ! -L "$D/.setup.lock" ] || refuse "$D/.setup.lock is a symbolic link"
+  mkdir -m 0700 "$D/.setup.lock" 2>/dev/null || [ -d "$D/.setup.lock" ] || refuse "cannot create the setup lock directory"
+  [ ! -L "$D/.setup.lock/holder" ] || refuse "$D/.setup.lock/holder is a symbolic link"
+  exec 9>>"$D/.setup.lock/holder"
+  flock -n 9 || refuse "another setup is running for $D (lock: $D/.setup.lock/holder)"
+  ISOLATION_MARKER="$D/.setup.lock/isolation-blocked"
+}
+
+say() { printf 'setup: %s\n' "$*"; }
+refuse() { printf 'setup: refused: %s\n' "$*" >&2; printf 'setup: nothing was changed.\n' >&2; exit 3; }
+fail() { CHECKING=0; printf 'setup: failed: %s\n' "$*" >&2; printf 'setup: %s\n' "$FAIL_HINT" >&2; exit 1; }
+usage() {
+  [ -z "${1:-}" ] || printf 'setup: %s\n' "$1" >&2
+  cat >&2 <<'EOF'
+usage: deploy/compose/setup [--check] [--demo] [--profile internal-http --publish ADDR] [--home DIR] [--instance NAME] [--offline KIT] [--yes]
+  --check                only run the checks of step 1 and write nothing: exit 0 when all pass, 3 when one fails
+  --demo                 also start the model simulator (answers without any model provider; for a first look)
+  --profile internal-http  a closed company network reached over plain HTTP (default: internet)
+  --publish ADDR         the IPv4 address both ports are published on (default 127.0.0.1; another one needs
+                         --profile internal-http)
+  --home DIR             where data, secrets and sockets live, outside this clone (default ~/prisma-memory-home;
+                         as root /var/lib/prisma-memory)
+  --instance NAME        the name of this install on this server (default core); a second install on the same
+                         server needs its own name, its own --home and two free ports
+  --offline KIT          install from a kit of tools/release/offline-kit.sh: check its sums, load its images; never build or pull
+  --yes                  answer yes to every question (setup install asks none)
+
+usage: deploy/compose/setup upgrade [--yes] [--offline KIT] [--home DIR] [--instance NAME]
+       deploy/compose/setup upgrade --rollback [--yes] [--home DIR] [--instance NAME]
+  upgrade                move the installation to the version of this tree: build (or load) the new images, stop,
+                         copy data/pg and .env under MEMORY_HOME/upgrade/, start the new version; a failure puts the
+                         copy back and starts the old version again
+  --rollback             go back to the copy of the unfinished upgrade, or of the newest finished one: everything
+                         written since that upgrade is lost
+  --yes                  do not ask; without a terminal on stdin --yes is required
+EOF
+  exit 2
+}
+
+# ---------------------------------------------------------------- where we are
+self="$1"; shift
+n=0
+while [ -L "$self" ] && [ "$n" -lt 40 ] && link="$(readlink -- "$self" 2>/dev/null)"; do
+  case "$link" in /*) self="$link" ;; *) self="$(dirname -- "$self")/$link" ;; esac
+  n=$((n + 1))
+done
+D="$(cd -- "$(dirname -- "$self")" && pwd -P)"
+REPO="$(cd -- "$D/../.." && pwd -P)"
+ENVF="$D/.env"
+[ -f "$D/compose.yaml" ] || { printf 'setup: no compose.yaml next to this script (%s)\n' "$D" >&2; exit 2; }
+
+PROFILE_ARGS=""; K=""; KIT_SUM=""; UP_OFFLINE=""; RUN_OFFLINE=""; KIT_TEXT=""; SUMS_TEXT=""
+dc() {
+  # shellcheck disable=SC2086 # PROFILE_ARGS is empty or "--profile demo"
+  docker compose --project-directory "$D" -f "$D/compose.yaml" --env-file "$ENVF" $PROFILE_ARGS "$@" 9>&-
+}
+admin() { MEMORY_COMPOSE_DIR="$D" "$REPO/deploy/bin/memory-admin" "$@" 9>&-; }
+
+# owner uid and permission bits (octal) of a path, GNU or BSD stat
+meta() { stat -c '%u %a' -- "$1" 2>/dev/null || stat -f '%u %Lp' -- "$1"; }
+# the same into META, or a refusal (exit 3): a failing or garbled stat must not end the checks with the shell's 1 or 2
+read_meta() {
+  META="$(meta "$1" 2>/dev/null)" && printf '%s\n' "$META" | grep -Eqx '[0-9]+ [0-7]{1,4}' \
+    || refuse "cannot read the owner and mode of $1 (stat failed)"
+}
+bytes() { wc -c < "$1" | tr -d ' '; }
+
+# ---------------------------------------------------------------- secrets: service, name, form
+# Forms: b64url — 32 random bytes as 43 base64url characters; hexN — N random bytes as 2N hex digits; despite — JSON
+# {"print","token"} of two 32-byte base64 values. The five role passwords are made in secrets/migrate and copied to
+# their consumers; settings-key-1, despite-keys and app-derive-key are made for the gateway and copied to the workers.
+# secrets/setup holds the two storage accounts (open, closed); it is mounted nowhere.
+SECRETS='migrate pg-memory_gateway b64url
+migrate pg-memory_worker b64url
+migrate pg-memory_audit_reader b64url
+migrate pg-memory_audit_maint b64url
+migrate pg-memory_admin_plane b64url
+db pg-password b64url
+gateway settings-key-1 hex32
+gateway despite-keys despite
+gateway link-signing-key-1 hex32
+gateway app-derive-key b64url
+gateway first-run-code hex16
+s3 root-access-key hex10
+s3 root-secret-key hex20
+setup s3-open-access hex10
+setup s3-open-secret hex20
+setup s3-closed-access hex10
+setup s3-closed-secret hex20'
+COPIES='gateway pg-memory_gateway migrate
+gateway pg-memory_audit_reader migrate
+gateway pg-memory_admin_plane migrate
+workers pg-memory_worker migrate
+workers pg-memory_audit_maint migrate
+workers pg-memory_audit_reader migrate
+workers settings-key-1 gateway
+workers despite-keys gateway
+workers app-derive-key gateway'
+SERVICES='db migrate gateway workers s3 setup'
+DIRS='data data/pg data/s3 data/s3-iam data/guard data/audit-ship run run/pg run/admin run/workplace run/cli secrets secrets/.new secrets/db secrets/migrate secrets/gateway secrets/workers secrets/s3 secrets/setup'
+
+form_of() { # name → form
+  printf '%s\n' "$SECRETS" | while read -r _s n f; do [ "$n" = "$1" ] && { printf '%s\n' "$f"; break; }; done
+}
+# does the file have exactly the form? (reads it with grep only; nothing is printed)
+form_ok() {
+  case "$2" in
+    b64url) want=43; re='[A-Za-z0-9_-]{43}' ;;
+    hex10) want=20; re='[0-9a-f]{20}' ;;
+    hex16) want=32; re='[0-9a-f]{32}' ;;
+    hex20) want=40; re='[0-9a-f]{40}' ;;
+    hex32) want=64; re='[0-9a-f]{64}' ;;
+    despite) want=111; re='\{"print":"[A-Za-z0-9+/]{43}=","token":"[A-Za-z0-9+/]{43}="\}' ;;
+    *) return 1 ;;
+  esac
+  [ "$(bytes "$1")" = "$want" ] && [ "$(grep -c '' "$1")" = 1 ] && grep -Eqx "$re" "$1"
+}
+# openssl's output of one form, on stdout (only ever redirected into a file)
+generate() {
+  case "$1" in
+    b64url) openssl rand -base64 32 | tr -d '\n=' | tr '+/' '-_' ;;
+    hex10) openssl rand -hex 10 | tr -d '\n' ;;
+    hex16) openssl rand -hex 16 | tr -d '\n' ;;
+    hex20) openssl rand -hex 20 | tr -d '\n' ;;
+    hex32) openssl rand -hex 32 | tr -d '\n' ;;
+    despite)
+      printf '{"print":"'; openssl rand -base64 32 | tr -d '\n'
+      printf '","token":"'; openssl rand -base64 32 | tr -d '\n'
+      printf '"}' ;;
+  esac
+}
+
+# ---------------------------------------------------------------- arguments
+cmd_install() {
+  DEMO=0; OPT_PROFILE=""; OPT_PUBLISH=""; OPT_HOME=""; OPT_INSTANCE=""; CHECK_ONLY=0; OPT_KIT=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --check) CHECK_ONLY=1 ;;
+      --demo) DEMO=1 ;;
+      --profile) [ $# -ge 2 ] || usage "--profile needs a value"; OPT_PROFILE="$2"; shift ;;
+      --publish) [ $# -ge 2 ] || usage "--publish needs an address"; OPT_PUBLISH="$2"; shift ;;
+      --home) [ $# -ge 2 ] || usage "--home needs a directory"; OPT_HOME="$2"; shift ;;
+      --instance) [ $# -ge 2 ] || usage "--instance needs a name"; OPT_INSTANCE="$2"; shift ;;
+      --offline) [ $# -ge 2 ] && [ -n "$2" ] || usage "--offline needs a kit directory"; OPT_KIT="$2"; shift ;;
+      --yes) ;;
+      --domain|--email|--workplace-domain) usage "$1: the TLS profile ships separately. This release keeps the ports on the loopback interface or a closed network" ;;
+      -h|--help) usage ;;
+      *) usage "unknown argument: $1" ;;
+    esac
+    shift
+  done
+  case "$OPT_PROFILE" in ""|internet|internal-http) ;; development) refuse "profile development is for local development only, never for an install" ;; *) usage "--profile: internet or internal-http" ;; esac
+  [ "$DEMO" = 1 ] && PROFILE_ARGS="--profile demo"
+
+  # The offline kit is checked here, before the lock is taken and before step 1, with --check as in a real run.
+  [ -z "$OPT_KIT" ] || { tree_version; check_kit; }
+  if [ "$CHECK_ONLY" = 1 ]; then
+    # Step 1 alone. No lock: taking it creates .setup.lock; the checks only read, so a concurrent install can at worst
+    # make this answer stale, never change what it judges.
+    preflight
+    exit 0
+  fi
+  lock_install
+  preflight
+  sweep_staging
+  write_env
+  check_compose_inputs
+  remember_home
+  make_dirs
+  make_secrets
+  make_storage_accounts
+  start
+  provision
+  check_isolation
+  summary
+}
+
+# ---------------------------------------------------------------- 1. checks (read-only)
+env_has() { [ -f "$ENVF" ] && grep -q "^$1=" "$ENVF"; }
+env_get() { [ -f "$ENVF" ] && sed -n "s/^$1=//p" "$ENVF" | tail -n 1 || true; }
+# effective value: what .env says, else the given default; a flag that contradicts .env is a refusal
+pick() { # KEY default [flag value]
+  if env_has "$1"; then
+    v="$(env_get "$1")"
+    [ -z "${3:-}" ] || [ "$3" = "$v" ] || refuse "$1 is $v in $ENVF, the command line asks for $3: edit the file or drop the option"
+    printf '%s\n' "$v"
+  elif [ -n "${3:-}" ]; then printf '%s\n' "$3"
+  else printf '%s\n' "$2"
+  fi
+}
+is_ipv4() { printf '%s\n' "$1" | grep -Eqx '((25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.){3}(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])'; }
+is_port() { printf '%s\n' "$1" | grep -Eqx '[1-9][0-9]{0,4}' && [ "$1" -le 65535 ]; }
+
+# Keep these names equal to .env.example. Compose control variables must never enter through this file either.
+check_env_keys() {
+  seen=" "
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in ""|\#*) continue ;; *=*) ;; *) refuse "$ENVF: expected KEY=value or a # comment" ;; esac
+    key="${line%%=*}"
+    case "$key" in
+      MEMORY_INSTANCE_ID|MEMORY_HOME|MEMORY_UID|MEMORY_GID|MEMORY_VERSION|MEMORY_COMMIT|MEMORY_DEPLOY_PROFILE|MEMORY_INSTANCE_NAME|MEMORY_PUBLISH_ADDR|GATEWAY_PORT|WEB_PORT|\
+      MEMORY_MEM_DB|MEMORY_MEM_MIGRATE|MEMORY_MEM_GATEWAY|MEMORY_MEM_WORKERS|MEMORY_MEM_WEB|MEMORY_MEM_S3|MEMORY_MEM_DEMO_MODELS|\
+      MEMORY_HEAP_GATEWAY|MEMORY_HEAP_WORKERS|MEMORY_HEAP_WEB|MEMORY_PG_SHARED_BUFFERS|MEMORY_PG_EFFECTIVE_CACHE_SIZE|MEMORY_PG_WORK_MEM|MEMORY_PG_SHM_SIZE|MEMORY_SCRYPT_PARALLEL) ;;
+      *) refuse "$ENVF: unknown key $key; only keys listed in .env.example are allowed" ;;
+    esac
+    case "$seen" in *" $key "*) refuse "$ENVF: duplicate key $key" ;; esac
+    seen="$seen$key "
+  done <"$ENVF"
+}
+
+tree_version() {
+  TREE_VERSION=""; TREE_COMMIT="unknown"
+  if [ -e "$REPO/.git" ] && command -v git >/dev/null 2>&1 && top="$(git -C "$REPO" rev-parse --show-toplevel 2>/dev/null)" && [ "$(cd -- "$top" && pwd -P)" = "$REPO" ]; then
+    # No `describe --dirty`: it refreshes and rewrites .git/index of the clone, GIT_OPTIONAL_LOCKS=0 or not (git 2.39).
+    # `status` with GIT_OPTIONAL_LOCKS=0 only reads; its answer adds the same -dirty suffix --dirty would.
+    TREE_VERSION="$(git -C "$REPO" describe --tags --always 2>/dev/null)" || refuse "git describe failed in $REPO"
+    TREE_COMMIT="$(git -C "$REPO" rev-parse HEAD 2>/dev/null)" || refuse "git rev-parse failed in $REPO"
+    changed="$(GIT_OPTIONAL_LOCKS=0 git -C "$REPO" status --porcelain --untracked-files=no 2>/dev/null)" || refuse "git status failed in $REPO"
+    [ -z "$changed" ] || { TREE_VERSION="$TREE_VERSION-dirty"; TREE_COMMIT="$TREE_COMMIT-dirty"; }
+  elif [ -f "$REPO/VERSION" ]; then
+    TREE_VERSION="$(head -n 1 "$REPO/VERSION" | tr -d ' \r\t')"
+  else
+    TREE_VERSION="0.0.0-local"
+  fi
+  printf '%s\n' "$TREE_VERSION" | grep -Eqx '[A-Za-z0-9][A-Za-z0-9_.-]{0,127}' || refuse "the version of this tree ($TREE_VERSION) cannot be an image tag"
+  printf '%s\n' "$TREE_COMMIT" | grep -Eqx '([0-9a-f]{7,40}(-dirty)?|unknown)' || refuse "the commit of this tree ($TREE_COMMIT) is not a commit"
+}
+
+# a directory or file under MEMORY_HOME that exists: not a link, our owner, no group or other access
+check_path() { # path kind(dir|file) [loose]
+  [ ! -L "$1" ] || refuse "$1 is a symbolic link; setup uses only directories and files it made itself"
+  if [ "$2" = dir ]; then [ -d "$1" ] || refuse "$1 exists and is not a directory"; else [ -f "$1" ] || refuse "$1 exists and is not a regular file"; fi
+  read_meta "$1"
+  set -- "$1" "$2" "${3:-}" $META
+  [ "$4" = "$TUID" ] || refuse "$1 belongs to uid $4, not to $TUID: setup never changes the owner of what it did not make"
+  [ "$3" = loose ] || [ $((0$5 & 077)) -eq 0 ] || refuse "$1 has mode $5; group and others must have no access (setup never changes it)"
+}
+
+preflight() {
+  CHECKING=1
+  # who installs: the user, or root for uid 10001 (a failing id is a refusal, exit 3, like every check)
+  { ME_UID="$(id -u)" && ME_GID="$(id -g)" && printf '%s %s\n' "$ME_UID" "$ME_GID" | grep -Eqx '[0-9]+ [0-9]+'; } \
+    || refuse "id failed: setup cannot tell which user runs it"
+  if [ "$ME_UID" = 0 ]; then TUID=10001; TGID=10001; DEF_HOME=/var/lib/prisma-memory; ROOT=1
+  else TUID="$ME_UID"; TGID="$ME_GID"; ROOT=0
+    case "${HOME:-}" in /*) DEF_HOME="$HOME/prisma-memory-home" ;; *) DEF_HOME="" ;; esac
+  fi
+  home_record="$D/.setup.lock/home"
+  if [ -e "$home_record" ] || [ -L "$home_record" ]; then
+    [ ! -L "$home_record" ] && [ -f "$home_record" ] || refuse "$home_record is not a regular home record"
+    if [ ! -f "$ENVF" ]; then
+      past_home="$(cat "$home_record")" || refuse "$ENVF is missing and its previous home record cannot be read: restore .env from backup"
+      printf '%s\n' "$past_home" | grep -Eqx '(/[A-Za-z0-9._-]+)+' || refuse "$ENVF is missing and its previous home record is invalid: restore .env from backup"
+      if [ -e "$past_home/data" ] || [ -L "$past_home/data" ]; then
+        refuse "$ENVF is missing but the recorded data tree at $past_home/data still exists: restore the original .env from backup; setup will not switch to a new home"
+      fi
+    fi
+  fi
+  if [ -e "$ENVF" ] || [ -L "$ENVF" ]; then
+    [ ! -L "$ENVF" ] && [ -f "$ENVF" ] || refuse "$ENVF is not a regular file"
+    read_meta "$ENVF"; set -- $META
+    [ "$1" = "$ME_UID" ] || refuse "$ENVF belongs to uid $1: run setup as that user"
+    [ $((0$2 & 077)) -eq 0 ] || refuse "$ENVF has mode $2; it must be 0600 (setup never changes it)"
+    ! grep -Eq "^[A-Z_]+=[\"']" "$ENVF" || refuse "$ENVF: write values without quotes"
+    check_env_keys
+  fi
+  tree_version
+
+  ID="$(pick MEMORY_INSTANCE_ID core "$OPT_INSTANCE")"
+  printf '%s\n' "$ID" | grep -Eqx '[a-z0-9][a-z0-9_-]{0,62}' || refuse "MEMORY_INSTANCE_ID ($ID): lowercase letters, digits, _ and -, at most 63"
+  H="$(pick MEMORY_HOME "$DEF_HOME" "$OPT_HOME")"
+  [ -n "$H" ] || refuse "HOME is not set: pass --home DIR"
+  case "$H" in /*) ;; *) refuse "MEMORY_HOME ($H) must be an absolute path" ;; esac
+  printf '%s\n' "$H" | grep -Eqx '(/[A-Za-z0-9._-]+)+' || refuse "MEMORY_HOME ($H): letters, digits, . _ - and / only"
+  case "/$H/" in */./*|*/../*) refuse "MEMORY_HOME ($H) must not contain . or .. parts" ;; esac
+  parent="$(cd -- "$(dirname -- "$H")" 2>/dev/null && pwd -P)" || refuse "the parent directory of MEMORY_HOME ($H) does not exist"
+  real_home="$parent/$(basename -- "$H")"
+  case "$real_home/" in "$REPO"/*) refuse "MEMORY_HOME ($H) is this clone or lies inside it ($REPO), where the image build would read it: choose a directory outside the clone with --home DIR" ;; esac
+  # A home belongs to one clone: its file .setup-tree names the compose folder of that clone. A home that names another
+  # clone is refused, and so is a folder that holds anything setup never makes there, unless it has the secrets
+  # directory of an install. A home of an install without the record (made by a setup before the record) is kept, and
+  # make_dirs records it with a notice. All of this comes before any other check reads the home.
+  HOME_UNRECORDED=0
+  if [ -d "$H" ] && [ ! -L "$H" ]; then
+    if [ -e "$H/.setup-tree" ] || [ -L "$H/.setup-tree" ]; then
+      check_path "$H/.setup-tree" file
+      home_owner="$(cat "$H/.setup-tree")" || refuse "cannot read $H/.setup-tree"
+      [ "$home_owner" = "$D" ] || refuse "MEMORY_HOME ($H) is the home of the install in $home_owner: give this install its own home with --home DIR"
+    else
+      home_foreign=""
+      for home_entry in "$H"/* "$H"/.[!.]* "$H"/..?*; do
+        [ -e "$home_entry" ] || [ -L "$home_entry" ] || continue
+        case "${home_entry##*/}" in
+          data|run|secrets) HOME_UNRECORDED=1 ;;
+          lost+found) ;;
+          *) [ -n "$home_foreign" ] || home_foreign="${home_entry##*/}" ;;
+        esac
+      done
+      [ -z "$home_foreign" ] || [ -d "$H/secrets" ] \
+        || refuse "MEMORY_HOME ($H) is not empty and holds $home_foreign, which setup never makes there: choose a new or empty directory with --home DIR"
+    fi
+  fi
+  [ "$(pick MEMORY_UID "$TUID")" = "$TUID" ] && [ "$(pick MEMORY_GID "$TGID")" = "$TGID" ] \
+    || refuse "this install runs as uid $(env_get MEMORY_UID); run setup as that user (or as root for 10001)"
+  PROFILE="$(pick MEMORY_DEPLOY_PROFILE internet "$OPT_PROFILE")"
+  case "$PROFILE" in internet|internal-http) ;; development) refuse "MEMORY_DEPLOY_PROFILE=development is for local development only" ;; *) refuse "MEMORY_DEPLOY_PROFILE ($PROFILE): internet or internal-http" ;; esac
+  PUBLISH="$(pick MEMORY_PUBLISH_ADDR 127.0.0.1 "$OPT_PUBLISH")"
+  is_ipv4 "$PUBLISH" || refuse "MEMORY_PUBLISH_ADDR ($PUBLISH) must be an IPv4 address"
+  [ "$PUBLISH" = 127.0.0.1 ] || [ "$PROFILE" = internal-http ] \
+    || refuse "MEMORY_PUBLISH_ADDR=$PUBLISH opens the ports beyond this server; that needs --profile internal-http (a closed network), otherwise keep 127.0.0.1"
+  GPORT="$(pick GATEWAY_PORT 8080)"; WPORT="$(pick WEB_PORT 8081)"
+  is_port "$GPORT" && is_port "$WPORT" && [ "$GPORT" != "$WPORT" ] || refuse "GATEWAY_PORT ($GPORT) and WEB_PORT ($WPORT): two different ports"
+  if [ "$UPGRADING" = 0 ] && { env_has MEMORY_VERSION || env_has MEMORY_COMMIT; }; then
+    [ "$(env_get MEMORY_VERSION)" = "$TREE_VERSION" ] && [ "$(env_get MEMORY_COMMIT)" = "$TREE_COMMIT" ] \
+      || refuse "this tree is $TREE_VERSION ($TREE_COMMIT), the install is $(env_get MEMORY_VERSION) ($(env_get MEMORY_COMMIT)): restore the source tree used for this install (including local changes), then run setup again, or run \`setup upgrade\` to move the installation to this tree"
+  fi
+
+  # tools
+  command -v docker >/dev/null 2>&1 || refuse "docker is not installed (deploy/host/prepare-host.sh installs it)"
+  command -v mktemp >/dev/null 2>&1 || refuse "mktemp is not installed: setup needs exclusive staging files"
+  command -v cmp >/dev/null 2>&1 || refuse "cmp is not installed: setup must compare existing credential copies"
+  need_flock
+  sv="$(docker version --format '{{.Server.Version}}' 9>&- 2>/dev/null)" \
+    || refuse "cannot reach the Docker daemon on the default local socket: v1 requires rootful Docker; rootless Docker and custom DOCKER_HOST/DOCKER_CONTEXT/DOCKER_CONFIG/XDG_RUNTIME_DIR are not supported. Check access to the default daemon and group docker (then log in again)"
+  [ "${sv%%.*}" -ge 24 ] 2>/dev/null || refuse "Docker $sv is too old: 24 or newer"
+  security_options="$(docker info --format '{{json .SecurityOptions}}' 9>&- 2>/dev/null)" || refuse "cannot verify the Docker daemon mode; v1 requires rootful Docker on the default local socket"
+  case "$security_options" in *rootless*) refuse "rootless Docker is not supported in v1: use rootful Docker on the default local socket" ;; esac
+  cv="$(docker compose version --short 9>&- 2>/dev/null)" || refuse "docker compose (v2) is not installed"
+  cv="${cv#v}"; cmaj="${cv%%.*}"; cmin="${cv#*.}"; cmin="${cmin%%.*}"
+  cpatch="${cv#*.*.}"; cpatch="${cpatch%%[-+]*}" # distribution suffixes: +ds1-0ubuntu1 or -desktop.1
+  { [ "$cmaj" -gt 2 ] || { [ "$cmaj" -eq 2 ] && { [ "$cmin" -gt 40 ] || { [ "$cmin" -eq 40 ] && [ "$cpatch" -ge 3 ]; }; }; }; } 2>/dev/null \
+    || refuse "Docker Compose $cv is too old: 2.40.3 or newer (minimum known to work)"
+  command -v openssl >/dev/null 2>&1 || refuse "openssl is not installed: it makes the secrets"
+  command -v free >/dev/null 2>&1 || refuse "free is not installed: setup reads the memory with it"
+  mem="$(free -b | awk '/^Mem:/ { m = $2 } /^Swap:/ { s = $2 } END { printf "%d %d\n", m / 1048576, (m + s) / 1048576 }')"
+  MEM_MB="${mem% *}"; ALL_MB="${mem#* }"
+  [ "$ALL_MB" -ge 7168 ] || refuse "RAM + swap is ${ALL_MB} MB, at least 7168 MB are needed to build; add swap: sudo deploy/host/prepare-host.sh --only swap"
+  # a rollback builds nothing and copies nothing (two renames inside the home): it must also work on a full disk
+  if [ "${ROLLBACK:-0}" != 1 ]; then
+    disk_at="$H"; [ -d "$disk_at" ] || disk_at="$parent"
+    free_kb="$(df -Pk "$disk_at" | awk 'NR == 2 { print $4 }')"
+    [ "${free_kb:-0}" -ge 20971520 ] 2>/dev/null || refuse "$disk_at has $((${free_kb:-0} / 1048576)) GB free, at least 20 GB are needed"
+  fi
+
+  # nothing next to compose.yaml may widen it
+  for f in compose.override.yaml compose.override.yml docker-compose.override.yaml docker-compose.override.yml; do
+    [ ! -e "$D/$f" ] || refuse "$D/$f exists: an override file could publish more than the two ports; remove it"
+  done
+  # Without the original .env even the instance ID may be unknown. Find this folder's containers independently of it.
+  if [ ! -f "$ENVF" ] || ! env_has MEMORY_INSTANCE_ID || ! env_has MEMORY_HOME; then
+    by_directory="$(docker ps -aq --filter "label=com.docker.compose.project.working_dir=$D" 9>&- 2>/dev/null)" \
+      || refuse "docker ps failed while checking this compose directory"
+    [ -z "$by_directory" ] || refuse "$ENVF is missing or incomplete but containers from $D exist: restore the original .env, including MEMORY_INSTANCE_ID and MEMORY_HOME; setup will not create a replacement install"
+  fi
+  # the compose project name belongs to this folder
+  # Capture Docker's status before sorting: a pipeline would turn a failed lookup into an empty successful one.
+  others="$(docker ps -a --filter "label=com.docker.compose.project=prisma-memory-$ID" --format '{{.Label "com.docker.compose.project.working_dir"}}' 9>&- 2>/dev/null)" \
+    || refuse "docker ps failed"
+  others="$(printf '%s\n' "$others" | sort -u)"
+  printf '%s\n' "$others" | while IFS= read -r w; do
+    [ -z "$w" ] || [ "$w" = "$D" ] || refuse "the compose project prisma-memory-$ID belongs to $w: give this install its own name with --instance NAME and its own home with --home DIR"
+  done
+  containers="$(docker ps -aq --filter "label=com.docker.compose.project=prisma-memory-$ID" 9>&- 2>/dev/null)" || refuse "docker ps failed"
+  if [ ! -f "$ENVF" ] && { [ -n "$containers$others" ] || [ -e "$H/data" ] || [ -L "$H/data" ]; }; then
+    refuse "$ENVF is missing but this project has containers or a data tree at $H/data: restore the original .env from backup; setup will not create a new install over it"
+  fi
+  for container in $containers; do
+    mounts="$(docker inspect --format '{{range .Mounts}}{{if eq .Type "bind"}}{{println .Source}}{{end}}{{end}}' "$container" 9>&- 2>/dev/null)" \
+      || refuse "docker inspect failed for project container $container: its data home is unknown"
+    printf '%s\n' "$mounts" | while IFS= read -r source; do
+      case "$source" in ""|"$H"/*|"$real_home"/*) ;; *) refuse "project container $container mounts $source outside the validated MEMORY_HOME $H: restore the original .env or select the matching home" ;; esac
+    done
+  done
+  # the two ports are free, unless our own containers hold them
+  running="$(docker ps -q --filter "label=com.docker.compose.project=prisma-memory-$ID" 9>&- 2>/dev/null)" || refuse "docker ps failed"
+  # Fails closed: without ss, or when ss fails, nobody can say the ports are free.
+  if [ -z "$running" ]; then
+    command -v ss >/dev/null 2>&1 || refuse "ss is not installed: setup checks with it that the two ports are free (package iproute2)"
+    listening="$(ss -Hltn 2>/dev/null)" || refuse "ss failed: setup cannot tell whether the two ports are free"
+    for port_var in "GATEWAY_PORT $GPORT" "WEB_PORT $WPORT"; do
+      p="${port_var#* }"; port_var="${port_var% *}"
+      ! printf '%s\n' "$listening" | awk '{ print $4 }' | grep -Eq "[:.]$p\$" \
+        || refuse "port $p is already in use on this server: free it, or put $port_var=<a free port> into $ENVF (mode 0600; the file may be written before the first run, setup adds the other keys)"
+    done
+  fi
+
+  # what exists under MEMORY_HOME
+  [ ! -e "$H" ] && [ ! -L "$H" ] || check_path "$H" dir
+  for d in $DIRS; do
+    [ -e "$H/$d" ] || [ -L "$H/$d" ] || continue
+    # run/pg: the database image makes its socket directory 03775; MEMORY_HOME (0700) keeps it closed
+    if [ "$d" = run/pg ]; then check_path "$H/$d" dir loose; else check_path "$H/$d" dir; fi
+  done
+  INSTALLED=0; [ ! -e "$H/data/pg/PG_VERSION" ] || INSTALLED=1
+  missing=""
+  for line in $(printf '%s\n' "$SECRETS" | awk '{ print $1 "/" $2 }') $(printf '%s\n' "$COPIES" | awk '{ print $1 "/" $2 }'); do
+    f="$H/secrets/$line"
+    if [ -e "$f" ] || [ -L "$f" ]; then
+      check_path "$f" file
+      read_meta "$f"; set -- $META; [ "$2" = 400 ] || refuse "$f has mode $2, expected 0400"
+      form_ok "$f" "$(form_of "${line#*/}")" || refuse "$f is empty or not in its form; setup never replaces a secret: restore it from your backup of $H/secrets"
+    else missing="$missing ${line}"
+    fi
+  done
+  [ "$INSTALLED" = 0 ] || [ -z "$missing" ] \
+    || refuse "the database exists, but these secret files are missing under $H/secrets:$missing — restore them from your backup; a new value would make the stored secrets unreadable"
+  while read -r svc name from; do
+    if [ -f "$H/secrets/$svc/$name" ] && [ -f "$H/secrets/$from/$name" ]; then
+      cmp -s "$H/secrets/$svc/$name" "$H/secrets/$from/$name" \
+        || refuse "$H/secrets/$svc/$name does not match $H/secrets/$from/$name: restore the matching files from backup; setup will not replace them"
+    fi
+  done <<EOF
+$COPIES
+EOF
+  if [ -e "$H/data/s3-iam/users.json" ] || [ -L "$H/data/s3-iam/users.json" ]; then check_path "$H/data/s3-iam/users.json" file
+    for name in s3-open-access s3-open-secret s3-closed-access s3-closed-secret; do
+      [ -f "$H/secrets/setup/$name" ] || refuse "$H/secrets/setup/$name is missing but users.json exists: restore matching storage credentials from backup"
+    done
+    if [ "$CHECK_ONLY" = 1 ]; then
+      check_storage_accounts
+    elif [ -d "$H/secrets/.new" ]; then
+      stage_storage_accounts
+      compare_storage_accounts
+    fi
+  elif [ "$INSTALLED" = 1 ]; then refuse "$H/data/s3-iam/users.json is missing on an existing install: restore it from backup; setup will not recreate storage accounts"
+  fi
+  CHECKING=0
+  say "checks passed: $TREE_VERSION, profile $PROFILE, home $H, uid $TUID"
+}
+
+# The offline kit (checked by cmd_install before the lock and before step 1; read-only): KIT names the format, the
+# version, the commit and one line per image (reference, file, image id); SHA256SUMS holds the sum of KIT and of every
+# image file. Both files are read once, into SUMS_TEXT and KIT_TEXT (the x keeps a trailing newline that a command
+# substitution would drop), and the sum of each copy must equal the sum of its file: a NUL byte, which no variable can
+# hold, or a file changed while it was read is refused, so each copy is its file byte for byte. The sum of KIT is checked
+# on its copy, and every later step, the load in start() included, reads only the copies. Every sum is compared before KIT is read for anything else, an empty line in either
+# file is refused, and the images must be exactly the ones this tree's compose file starts.
+kit_lines() { printf '%s' "$KIT_TEXT"; }
+sums_lines() { printf '%s' "$SUMS_TEXT"; }
+check_kit() {
+  [ -d "$OPT_KIT" ] && [ ! -L "$OPT_KIT" ] || refuse "the offline kit $OPT_KIT is not a directory"
+  # The x keeps a line feed that ends the kit path itself; then only the one line feed pwd -P adds is removed.
+  K="$(cd -- "$OPT_KIT" && pwd -P && printf x)" || refuse "the offline kit $OPT_KIT is not a directory"
+  K="${K%x}"; K="${K%?}"
+  command -v sha256sum >/dev/null 2>&1 || refuse "sha256sum is not installed: setup --offline checks the kit with it (package coreutils)"
+  for f in KIT SHA256SUMS; do
+    [ -f "$K/$f" ] && [ ! -L "$K/$f" ] || refuse "the offline kit has no $f, or it is not a regular file: make the kit again with tools/release/offline-kit.sh"
+  done
+  [ -d "$K/images" ] && [ ! -L "$K/images" ] || refuse "the offline kit has no images folder, or it is a symbolic link: make the kit again with tools/release/offline-kit.sh"
+  SUMS_TEXT="$(cat "$K/SHA256SUMS" && printf x)" && KIT_TEXT="$(cat "$K/KIT" && printf x)" || refuse "cannot read $K/SHA256SUMS or $K/KIT"
+  SUMS_TEXT="${SUMS_TEXT%x}"; KIT_TEXT="${KIT_TEXT%x}"
+  [ "$(sums_lines | sha256sum | cut -c1-64)" = "$(sha256sum <"$K/SHA256SUMS" | cut -c1-64)" ] \
+    || refuse "$K/SHA256SUMS holds a NUL byte or changed while it was read: the kit is damaged or was changed"
+  [ "$(kit_lines | sha256sum | cut -c1-64)" = "$(sha256sum <"$K/KIT" | cut -c1-64)" ] \
+    || refuse "$K/KIT holds a NUL byte or changed while it was read: the kit is damaged or was changed"
+  ! sums_lines | grep -Evqx '[0-9a-f]{64}  (KIT|images/[a-z0-9][a-z0-9.-]*\.tar)' \
+    || refuse "$K/SHA256SUMS has a line that is not a sum of a kit file: the kit is damaged or was changed"
+  [ "$(sums_lines | grep -Ec '^[0-9a-f]{64}  KIT$')" = 1 ] \
+    || refuse "the files of $K/SHA256SUMS and the images of $K/KIT differ: the kit is damaged or was changed"
+  while read -r sum f; do
+    # Every line of SUMS_TEXT is a sum line (checked above); an empty one is the here-document's own last line.
+    [ -n "$sum$f" ] || continue
+    if [ "$f" = KIT ]; then
+      got="$(kit_lines | sha256sum | cut -c1-64)"
+    else
+      [ -f "$K/$f" ] && [ ! -L "$K/$f" ] || refuse "$K/$f is missing or not a regular file: the kit is damaged or was changed"
+      got="$(sha256sum <"$K/$f" | cut -c1-64)"
+    fi
+    [ "$got" = "$sum" ] \
+      || refuse "$K/$f does not match its sum in SHA256SUMS: the kit is damaged or was changed; copy it again and compare the sum of SHA256SUMS with the one offline-kit.sh printed"
+  done <<EOF
+$SUMS_TEXT
+EOF
+  [ "$(kit_lines | sed -n 1p)" = "format prisma-offline-kit/1" ] \
+    && ! kit_lines | grep -Evqx 'format prisma-offline-kit/1|version [A-Za-z0-9][A-Za-z0-9_.-]{0,127}|commit [0-9a-f]{40}|image [a-z0-9][A-Za-z0-9./_:@-]* images/[a-z0-9][a-z0-9.-]*\.tar sha256:[0-9a-f]{64}' \
+    || refuse "$K/KIT is not an offline kit of format prisma-offline-kit/1"
+  sums_files="$(sums_lines | awk '$2 != "KIT" { print $2 }' | sort)"
+  kit_files="$(kit_lines | awk '$1 == "image" { print $3 }' | sort)"
+  [ "$sums_files" = "$kit_files" ] && [ "$(printf '%s\n' "$sums_files" | sort -u)" = "$sums_files" ] \
+    || refuse "the files of $K/SHA256SUMS and the images of $K/KIT differ: the kit is damaged or was changed"
+  kit_version="$(kit_lines | sed -n 's/^version //p')"; kit_commit="$(kit_lines | sed -n 's/^commit //p')"
+  [ "$kit_version" = "$TREE_VERSION" ] && [ "$kit_commit" = "$TREE_COMMIT" ] \
+    || refuse "the offline kit is $kit_version ($kit_commit), this tree is $TREE_VERSION ($TREE_COMMIT): use the kit made from this commit, or check out the commit of the kit"
+  s3_image="$(sed -n 's/^    image: \(versity\/versitygw:[^ ]*\)$/\1/p' "$D/compose.yaml")"
+  [ "$(printf '%s\n' "$s3_image" | grep -c .)" = 1 ] || refuse "cannot read the storage image from $D/compose.yaml"
+  wanted="prisma-memory-db:$TREE_VERSION prisma-memory-app:$TREE_VERSION prisma-memory-web:$TREE_VERSION $s3_image"
+  [ "$DEMO" = 0 ] || wanted="$wanted prisma-memory-demo-models:$TREE_VERSION"
+  for ref in $wanted; do
+    [ "$(kit_lines | awk -v r="$ref" '$1 == "image" && $2 == r' | grep -c .)" = 1 ] \
+      || refuse "the offline kit has no image $ref; setup --offline never builds or pulls: make the kit again with tools/release/offline-kit.sh"
+  done
+  for ref in $(kit_lines | awk '$1 == "image" { print $2 }'); do
+    case " $wanted prisma-memory-demo-models:$TREE_VERSION " in *" $ref "*) ;; *) refuse "the offline kit holds $ref, which this setup does not use: the kit is damaged or was changed" ;; esac
+  done
+  KIT_SUM="$(sums_lines | sha256sum | cut -c1-64)"
+  say "offline kit: $K, SHA256SUMS sha256 $KIT_SUM, $(sums_lines | grep -c '') files match their sums"
+}
+
+# Retain only the validated, non-secret home path: even after containers and .env are lost, the data remains identifiable.
+remember_home() {
+  home_record="$D/.setup.lock/home"
+  if [ -f "$home_record" ] && grep -Fqx -- "$H" "$home_record"; then return 0; fi
+  ENV_TMP="$(mktemp "$D/.setup.lock/home.XXXXXX")" || fail "cannot stage the home record"
+  printf '%s\n' "$H" >"$ENV_TMP" || fail "cannot write the home record"
+  mv -f "$ENV_TMP" "$home_record" || fail "cannot save the home record"
+  ENV_TMP=""
+}
+
+# The clone lock is already held, and preflight has validated every parent directory. Never follow a leftover link.
+sweep_staging() {
+  for staged in "$H/secrets/.new/"* "$H/secrets/.new/".[!.]* "$H/secrets/.new/"..?*; do
+    [ -f "$staged" ] && [ ! -L "$staged" ] || continue
+    rm -f "$staged" || fail "cannot remove an abandoned staging file: $staged"
+  done
+}
+
+# ---------------------------------------------------------------- 2. .env
+write_env() {
+  # memory profile from the RAM of the host; the values stay in .env and survive an upgrade
+  if [ "$MEM_MB" -lt 7000 ]; then set -- 512m 512m 512m 384m 128m 320 320 240 128MB 384MB 4MB 128m 1
+  elif [ "$MEM_MB" -lt 15000 ]; then set -- 1g 1g 1g 768m 256m 640 640 480 256MB 768MB 8MB 256m 2
+  else set -- 4g 2g 2g 1536m 512m 1536 1536 1024 1GB 3GB 16MB 1g 2
+  fi
+  want="MEMORY_INSTANCE_ID=$ID
+MEMORY_HOME=$H
+MEMORY_UID=$TUID
+MEMORY_GID=$TGID
+MEMORY_VERSION=$TREE_VERSION
+MEMORY_COMMIT=$TREE_COMMIT
+MEMORY_DEPLOY_PROFILE=$PROFILE
+MEMORY_PUBLISH_ADDR=$PUBLISH
+GATEWAY_PORT=$GPORT
+WEB_PORT=$WPORT
+MEMORY_MEM_DB=$1
+MEMORY_MEM_MIGRATE=256m
+MEMORY_MEM_GATEWAY=$2
+MEMORY_MEM_WORKERS=$3
+MEMORY_MEM_WEB=$4
+MEMORY_MEM_S3=$5
+MEMORY_MEM_DEMO_MODELS=256m
+MEMORY_HEAP_GATEWAY=$6
+MEMORY_HEAP_WORKERS=$7
+MEMORY_HEAP_WEB=$8
+MEMORY_PG_SHARED_BUFFERS=$9
+MEMORY_PG_EFFECTIVE_CACHE_SIZE=${10}
+MEMORY_PG_WORK_MEM=${11}
+MEMORY_PG_SHM_SIZE=${12}
+MEMORY_SCRYPT_PARALLEL=${13}"
+  add=""
+  for kv in $want; do env_has "${kv%%=*}" || add="$add$kv
+"; done
+  [ -n "$add" ] || { say ".env: nothing to add"; return 0; }
+  tmp="$(mktemp "$D/.env.new.XXXXXX")" || fail "cannot create a temporary .env"
+  ENV_TMP="$tmp"
+  { if [ -f "$ENVF" ]; then
+      cat "$ENVF" || fail "cannot read $ENVF"
+      # Keep the existing bytes and terminate the last line before appending a missing key.
+      if [ -s "$ENVF" ] && [ "$(tail -c 1 "$ENVF" | wc -l | tr -d ' ')" = 0 ]; then printf '\n'; fi
+    else printf '# written by deploy/compose/setup — no secret belongs here; every key is explained in .env.example\n'
+    fi
+    printf '%s' "$add"; } > "$tmp" || fail "cannot write $tmp"
+  chmod 0600 "$tmp"
+  mv -f "$tmp" "$ENVF" || fail "cannot write $ENVF"
+  say ".env: added $(printf '%s' "$add" | grep -c '') key(s)"
+}
+
+# Compose parses .env itself (including interpolation). Check its actual interpolation inputs, under the same
+# cleared environment and exact -f/--env-file arguments used for every subsequent call, before making any secret.
+check_compose_inputs() {
+  COMPOSE_TMP="$(mktemp "$D/.setup-compose.XXXXXX")" || fail "cannot create a temporary compose check"
+  dc config --environment >"$COMPOSE_TMP" || fail "cannot resolve compose inputs from $ENVF"
+  for kv in "MEMORY_INSTANCE_ID=$ID" "MEMORY_HOME=$H" "MEMORY_UID=$TUID" "MEMORY_GID=$TGID" \
+      "MEMORY_VERSION=$TREE_VERSION" "MEMORY_COMMIT=$TREE_COMMIT" "MEMORY_DEPLOY_PROFILE=$PROFILE" \
+      "MEMORY_PUBLISH_ADDR=$PUBLISH" "GATEWAY_PORT=$GPORT" "WEB_PORT=$WPORT"; do
+    key="${kv%%=*}"
+    [ "$(grep -c "^$key=" "$COMPOSE_TMP")" = 1 ] && grep -Fqx -- "$kv" "$COMPOSE_TMP" \
+      || fail "compose input $key differs from the value checked by setup; correct $ENVF"
+  done
+  rm -f "$COMPOSE_TMP"; COMPOSE_TMP=""
+}
+
+# ---------------------------------------------------------------- 3. directories and secrets
+mine() { [ "$ROOT" = 0 ] || chown "$TUID:$TGID" "$1"; }
+make_dirs() {
+  for d in "" $DIRS; do
+    p="$H${d:+/$d}"
+    [ -d "$p" ] && continue
+    mkdir -m 0700 "$p" || fail "cannot create $p"
+    mine "$p"
+  done
+  record_home_owner
+}
+# The record of the clone that owns this home, read by preflight; it names no secret. It is staged in secrets/.new,
+# which the next run sweeps, so an interrupted write leaves nothing in the home that preflight would refuse.
+record_home_owner() {
+  if [ -f "$H/.setup-tree" ] && [ "$(cat "$H/.setup-tree")" = "$D" ]; then return 0; fi
+  ENV_TMP="$(mktemp "$H/secrets/.new/setup-tree.XXXXXX")" || fail "cannot stage the owner record of the home"
+  printf '%s\n' "$D" >"$ENV_TMP" || fail "cannot write the owner record of the home"
+  mine "$ENV_TMP"
+  mv -f "$ENV_TMP" "$H/.setup-tree" || fail "cannot save the owner record of the home"
+  ENV_TMP=""
+  [ "$HOME_UNRECORDED" = 0 ] || say "home: $H has the layout of an install but no owner record (made by an earlier setup): recorded as the home of $D"
+}
+# put a prepared temporary file in place: size and form checked, 0400, linked to a name that must not exist yet
+place() { # tmp final form
+  form_ok "$1" "$3" || { rm -f "$1"; fail "the value made for $2 is not in its form (openssl?)"; }
+  chmod 0400 "$1"; mine "$1"
+  ln "$1" "$2" || { rm -f "$1"; fail "$2 appeared meanwhile; setup does not overwrite it"; }
+  rm -f "$1"
+}
+make_secrets() {
+  S="$H/secrets"; made=0
+  while read -r svc name form; do
+    [ ! -L "$S/$svc/$name" ] || fail "$S/$svc/$name appeared as a symbolic link"
+    [ ! -e "$S/$svc/$name" ] || continue
+    [ "$INSTALLED" = 0 ] || fail "$S/$svc/$name is missing on an existing install"
+    SECRET_TMP="$(mktemp "$S/.new/$svc.$name.XXXXXX")" || fail "cannot stage $svc/$name"
+    generate "$form" 9>&- > "$SECRET_TMP" || fail "openssl rand failed for $name"
+    place "$SECRET_TMP" "$S/$svc/$name" "$form"
+    SECRET_TMP=""
+  done <<EOF
+$SECRETS
+EOF
+  while read -r svc name from; do
+    [ ! -L "$S/$svc/$name" ] || fail "$S/$svc/$name appeared as a symbolic link"
+    [ ! -e "$S/$svc/$name" ] || continue
+    [ "$INSTALLED" = 0 ] || fail "$S/$svc/$name is missing on an existing install"
+    SECRET_TMP="$(mktemp "$S/.new/$svc.$name.XXXXXX")" || fail "cannot stage $svc/$name"
+    cp "$S/$from/$name" "$SECRET_TMP" || fail "cannot copy $name to $svc"
+    place "$SECRET_TMP" "$S/$svc/$name" "$(form_of "$name")"
+    SECRET_TMP=""
+  done <<EOF
+$COPIES
+EOF
+  for line in $(printf '%s\n' "$SECRETS" "$COPIES" | awk '{ print $1 "/" $2 }'); do
+    form_ok "$S/$line" "$(form_of "${line#*/}")" || fail "$S/$line is not in place"
+    made=$((made + 1))
+  done
+  say "secrets: $made files in place under $S (mode 0400)"
+}
+
+# versitygw's own account file, written before its first start (create-user would put the secret into argv)
+stage_storage_accounts() {
+  S="$H/secrets/setup"
+  # The storage container can rename files in its IAM directory. Stage only in the host-only secrets directory.
+  IAM_TMP="$(mktemp "$H/secrets/.new/iam.XXXXXX")" || fail "cannot stage storage accounts"
+  account() { # access-file secret-file; every read/write error must reach the caller, even in a guarded block
+    printf '"' && cat "$1" && printf '":{"access":"' && cat "$1" && printf '","secret":"' && cat "$2" &&
+      printf '","role":"user","userID":0,"groupID":0,"projectID":0}'
+  }
+  { printf '{"accessAccounts":{' && account "$S/s3-open-access" "$S/s3-open-secret" && printf ',' &&
+    account "$S/s3-closed-access" "$S/s3-closed-secret" && printf '}}\n'; } > "$IAM_TMP" \
+    || fail "cannot read storage account files or write the IAM file"
+  account_re='"[0-9a-f]{20}":\{"access":"[0-9a-f]{20}","secret":"[0-9a-f]{40}","role":"user","userID":0,"groupID":0,"projectID":0\}'
+  grep -Eqx "\{\"accessAccounts\":\{$account_re,$account_re\}\}" "$IAM_TMP" \
+    || fail "the staged IAM file is incomplete or not in its form"
+}
+# --check: the same form and comparison as stage + compare, read through pipes, so no staging file is written and no
+# value enters a shell variable, an argument or the environment.
+storage_accounts_json() {
+  S="$H/secrets/setup"
+  account() {
+    printf '"' && cat "$1" && printf '":{"access":"' && cat "$1" && printf '","secret":"' && cat "$2" &&
+      printf '","role":"user","userID":0,"groupID":0,"projectID":0}'
+  }
+  printf '{"accessAccounts":{' && account "$S/s3-open-access" "$S/s3-open-secret" && printf ',' &&
+    account "$S/s3-closed-access" "$S/s3-closed-secret" && printf '}}\n'
+}
+check_storage_accounts() {
+  account_re='"[0-9a-f]{20}":\{"access":"[0-9a-f]{20}","secret":"[0-9a-f]{40}","role":"user","userID":0,"groupID":0,"projectID":0\}'
+  storage_accounts_json | grep -Eqx "\{\"accessAccounts\":\{$account_re,$account_re\}\}" \
+    || refuse "the storage credentials in $H/secrets/setup are incomplete or not in their form: restore them from backup"
+  storage_accounts_json | cmp -s - "$H/data/s3-iam/users.json" \
+    || refuse "$H/data/s3-iam/users.json does not match the storage credentials in $H/secrets/setup: restore matching files from backup; setup will not overwrite IAM"
+}
+compare_storage_accounts() {
+  cmp -s "$IAM_TMP" "$H/data/s3-iam/users.json" \
+    || refuse "$H/data/s3-iam/users.json does not match the storage credentials in $H/secrets/setup: restore matching files from backup; setup will not overwrite IAM"
+  rm -f "$IAM_TMP"; IAM_TMP=""
+}
+make_storage_accounts() {
+  u="$H/data/s3-iam/users.json"
+  stage_storage_accounts
+  [ ! -e "$u" ] || { compare_storage_accounts; say "storage accounts: $u exists, kept"; return 0; }
+  chmod 0600 "$IAM_TMP"; mine "$IAM_TMP"
+  # An atomic create-exclusive publication has the same visibility as a rename and cannot replace an existing file.
+  ln "$IAM_TMP" "$u" || fail "$u appeared meanwhile; setup does not overwrite it"
+  rm -f "$IAM_TMP"; IAM_TMP=""
+  say "storage accounts: two (open, closed) written to $u"
+}
+
+# ---------------------------------------------------------------- 4. images and containers
+images() {
+  if [ "$ALL_MB" -lt 8192 ]; then COMPOSE_PARALLEL_LIMIT=1; export COMPOSE_PARALLEL_LIMIT; say "build: one image at a time (RAM + swap ${ALL_MB} MB)"; fi
+  if [ -n "$OPT_KIT" ]; then
+    # All images first, then every id: a later archive could otherwise retag an image that was already compared. The
+    # ids come from KIT_TEXT, the copy whose sum was checked; KIT is never read from the kit again.
+    while read -r word ref file id; do
+      [ "$word" = image ] || continue
+      say "load: $ref"
+      docker load -i "$K/$file" </dev/null 9>&- || fail "docker load of $K/$file failed (its output is above)"
+    done <<EOF
+$KIT_TEXT
+EOF
+    while read -r word ref file id; do
+      [ "$word" = image ] || continue
+      got="$(docker image inspect --format '{{.Id}}' "$ref" </dev/null 9>&- 2>/dev/null)" || got=""
+      [ "$got" = "$id" ] || fail "the image $ref is not the one the kit names after docker load (expected $id): nothing was started"
+    done <<EOF
+$KIT_TEXT
+EOF
+    say "build: skipped, the images come from the offline kit"
+    UP_OFFLINE="--no-build --pull never"
+    RUN_OFFLINE="--pull never"
+  else
+    say "build: the images of $TREE_VERSION (this takes a while the first time)"
+    dc build --build-arg "MEMORY_VERSION=$TREE_VERSION" --build-arg "MEMORY_COMMIT=$TREE_COMMIT" || fail "the image build failed (its output is above)"
+  fi
+}
+start() {
+  # upgrade builds or loads the images before it stops the installation
+  [ "$IMAGES_READY" = 1 ] || images
+  say "start: db and s3"
+  # shellcheck disable=SC2086 # UP_OFFLINE is empty or the two fixed options of an offline install
+  dc up -d $UP_OFFLINE --wait --wait-timeout 300 db s3 || fail "db or s3 did not become healthy: docker compose --project-directory $D logs db s3"
+  # buckets and their owners, with versitygw's admin client inside the s3 container; the root keys are read there from
+  # its own files, the two access key ids come on stdin, no value is an argument of a command on this host
+  S="$H/secrets/setup"
+  BUCKET_TMP="$(mktemp "$H/secrets/.new/buckets.XXXXXX")" || fail "cannot stage the bucket script"
+  { printf '%s\n' 'set -eu' \
+      'ADMIN_ACCESS_KEY="$(cat /run/credentials/root-access-key)"; ADMIN_SECRET_KEY="$(cat /run/credentials/root-secret-key)"' \
+      'export ADMIN_ACCESS_KEY ADMIN_SECRET_KEY' \
+      'have="$(versitygw admin --endpoint-url http://127.0.0.1:7071 list-buckets)"' \
+      'bucket() { if printf "%s\n" "$have" | grep -qw -- "$1"; then versitygw admin --endpoint-url http://127.0.0.1:7071 change-bucket-owner --bucket "$1" --owner "$2"; else versitygw admin --endpoint-url http://127.0.0.1:7071 create-bucket --bucket "$1" --owner "$2"; fi; }' &&
+    printf "bucket memory-open '" && cat "$S/s3-open-access" && printf "'\n" &&
+    printf "bucket memory-closed '" && cat "$S/s3-closed-access" && printf "'\n"
+  } >"$BUCKET_TMP" || fail "cannot read storage account files or write the bucket script"
+  [ "$(wc -l <"$BUCKET_TMP" | tr -d ' ')" = 7 ] &&
+    sed -n '6p' "$BUCKET_TMP" | grep -Eqx "bucket memory-open '[0-9a-f]{20}'" &&
+    sed -n '7p' "$BUCKET_TMP" | grep -Eqx "bucket memory-closed '[0-9a-f]{20}'" &&
+    sh -n "$BUCKET_TMP" || fail "the staged bucket script is incomplete or not in its form"
+  dc exec -T s3 /bin/sh -s <"$BUCKET_TMP" || fail "the buckets were not created (versitygw admin inside s3)"
+  rm -f "$BUCKET_TMP"; BUCKET_TMP=""
+  say "storage: buckets memory-open and memory-closed with their owners"
+  # the schema in the foreground, so its exit code and its lines (apply / skip, never a value) are seen here; a plain
+  # `docker compose up -d` later runs the same job through depends_on
+  say "schema: migrate"
+  # offline, the job's image must be the loaded one: with --pull never a missing image fails here, no registry lookup
+  # shellcheck disable=SC2086 # RUN_OFFLINE is empty or the one fixed option of an offline install
+  dc run --rm -T $RUN_OFFLINE migrate || fail "the schema step failed (exit code above): nothing after it was started"
+  services="gateway workers web"; [ "$DEMO" = 0 ] || services="$services demo-models"
+  PRODUCT_SERVICES="$services"
+  say "start: $services"
+  # Until health confirms isolation, every ordinary failure also stops a partial start. SIGKILL leaves the marker.
+  [ ! -L "$ISOLATION_MARKER" ] || fail "the isolation marker is a symbolic link: $ISOLATION_MARKER"
+  printf 'storage isolation is not confirmed; run setup again\n' >"$ISOLATION_MARKER" || fail "cannot leave the isolation marker"
+  PRODUCT_STARTED=1
+  # shellcheck disable=SC2086
+  dc up -d $UP_OFFLINE --wait --wait-timeout 900 --no-deps $services || fail "the stack did not start: docker compose --project-directory $D logs gateway workers web"
+}
+
+# ---------------------------------------------------------------- 5. settings and isolation
+provision() {
+  S="$H/secrets/setup"
+  item() { printf '{"category":"storage","key":"%s","value":"%s"}' "$1" "$2"; }
+  file_item() { printf '{"category":"storage","key":"%s","value":"' "$1" && cat "$2" && printf '"}'; }
+  PROVISION_TMP="$(mktemp "$H/secrets/.new/provision.XXXXXX")" || fail "cannot stage storage settings"
+  { printf '{"format":"prisma-provision/1","items":[' &&
+    item s3_endpoint http://s3:7070 && printf ',' && item bucket_open memory-open && printf ',' && item bucket_closed memory-closed && printf ',' &&
+    file_item access_key_open "$S/s3-open-access" && printf ',' && file_item secret_key_open "$S/s3-open-secret" && printf ',' &&
+    file_item access_key_closed "$S/s3-closed-access" && printf ',' && file_item secret_key_closed "$S/s3-closed-secret" &&
+    printf ']}\n'; } >"$PROVISION_TMP" || fail "cannot read storage account files or write the provision document"
+  # The framing and key order are literals; require the exact value form of each item, including successful short reads.
+  item_re() { printf '%s' '\{"category":"storage","key":"' "$1" '","value":"' "$2" '"\}'; }
+  provision_re="\{\"format\":\"prisma-provision/1\",\"items\":\[$(item_re s3_endpoint http://s3:7070),$(item_re bucket_open memory-open),$(item_re bucket_closed memory-closed),$(item_re access_key_open '[0-9a-f]{20}'),$(item_re secret_key_open '[0-9a-f]{40}'),$(item_re access_key_closed '[0-9a-f]{20}'),$(item_re secret_key_closed '[0-9a-f]{40}')\]\}"
+  [ "$(wc -l <"$PROVISION_TMP" | tr -d ' ')" = 1 ] && grep -Eqx "$provision_re" "$PROVISION_TMP" \
+    || fail "the staged provision document is incomplete or not in its form"
+  admin provision apply - <"$PROVISION_TMP" || fail "the storage settings were not stored (memory-admin provision apply)"
+  rm -f "$PROVISION_TMP"; PROVISION_TMP=""
+  say "settings: storage endpoint, buckets and the two key pairs (only where nobody set them)"
+  if [ "$DEMO" = 1 ]; then
+    [ -f "$D/provision/demo-models.json" ] || fail "$D/provision/demo-models.json is not in this tree: the demo profile file is missing"
+    admin provision apply - < "$D/provision/demo-models.json" || fail "the demo model settings were not stored"
+    say "settings: the model simulator (demo)"
+  fi
+}
+check_isolation() {
+  tries=0
+  while :; do
+    answer="$(admin health 2>/dev/null)" || answer=""
+    answer="$(printf '%s' "$answer" | tr -d ' \t\r\n')"
+    case "$answer" in
+      *'"storage_isolation":"ok"'*)
+        rm -f "$ISOLATION_MARKER" || fail "cannot clear the isolation marker"
+        PRODUCT_STARTED=0
+        say "storage isolation: each class's key is refused on the other bucket"; return 0 ;;
+      *'"storage_isolation":"fail"'*) fail "storage isolation violated: one class's key reaches the other bucket. Stop here and check the storage accounts; nothing may be stored on this install" ;;
+    esac
+    tries=$((tries + 1))
+    [ "$tries" -lt 10 ] || fail "storage isolation not confirmed: the gateway does not report storage_isolation ok (deploy/bin/memory-admin health)"
+    sleep 3
+  done
+}
+
+# ---------------------------------------------------------------- 6. summary (no secret, the install code included)
+summary() {
+  code="$H/secrets/gateway/first-run-code"
+  sudo=""; [ "$ROOT" = 0 ] || sudo="sudo "
+  elevate=""; [ "$ROOT" = 1 ] || elevate="sudo "   # prepare-host.sh needs root; setup runs as the installing user
+  printf '\n'
+  printf 'Install: %s\n' "$D"
+  printf 'Version: %s (%s)\n' "$TREE_VERSION" "$TREE_COMMIT"
+  printf 'Profile: %s\n' "$PROFILE"
+  printf 'Home: %s\n' "$H"
+  [ -z "$OPT_KIT" ] || printf 'Kit: %s (SHA256SUMS sha256 %s)\n' "$K" "$KIT_SUM"
+  printf 'Agents: http://%s:%s/mcp\n' "$PUBLISH" "$GPORT"
+  printf 'Panel: http://%s:%s\n' "$PUBLISH" "$WPORT"
+  [ "$PUBLISH" != 127.0.0.1 ] || printf 'Tunnel: ssh -N -L %s:127.0.0.1:%s -L %s:127.0.0.1:%s <you>@<this server> (agents and panel), then open http://127.0.0.1:%s/admin/first-run\n' "$GPORT" "$GPORT" "$WPORT" "$WPORT" "$WPORT"
+  printf 'Install code: %s (read it with: %scat %s; echo)\n' "$code" "$sudo" "$code"
+  printf 'Secrets: %s — back this directory up; without it the encrypted settings cannot be read\n' "$H/secrets"
+  if [ "$PROFILE" = internet ]; then
+    printf 'Channel: agents connect on the external channel; for a private network see deploy/compose/README.md (Profiles and closed networks)\n'
+  else
+    printf 'Channel: internal-http uses the configured internal networks; other clients and external Host names use the external channel\n'
+    printf 'Warning: internal-http does not bypass the Host and Origin guards or configure an agent address; check the address and host settings before connecting remote agents\n'
+    # No line for an address in 127.0.0.0/8: it is reachable from this server only, and prepare-host.sh refuses such a
+    # pair. PUBLISH passed is_ipv4 in step 1 (four plain decimal fields), so its first field is the first octet.
+    [ "${PUBLISH%%.*}" = 127 ] || printf 'Firewall: the Docker guard of deploy/host/prepare-host.sh lets the closed network in only after: %sbash deploy/host/prepare-host.sh --only firewall --admit %s:%s,%s:%s (--admit-from NET narrows it)\n' "$elevate" "$PUBLISH" "$GPORT" "$PUBLISH" "$WPORT"
+  fi
+  printf 'Warning: plain HTTP — keep the ports on 127.0.0.1 or a closed network until the TLS profile is set up\n'
+  [ "$DEMO" = 0 ] || printf 'Warning: demo models — answers come from the simulator, not from a model; set real models in the panel\n'
+  [ "$GPORT" = 8080 ] || printf 'Warning: gateway port %s — links the gateway writes name port 8080 until a public address is configured\n' "$GPORT"
+  printf 'Next: open http://%s:%s/admin/first-run, enter the install code to create the first administrator, then set the models and create the first agent key\n' "$PUBLISH" "$WPORT"
+}
+
+# ---------------------------------------------------------------- upgrade and rollback
+# The saved state of one upgrade: MEMORY_HOME/upgrade/<UTC yyyymmddThhmmssZ>-from-<version>/ with pg (a copy of
+# data/pg), env (a copy of .env) and state (from_version, from_commit, to_version, to_commit, started_at, stage).
+# MEMORY_HOME/upgrade/current names the folder while an upgrade is unfinished. Nothing here is ever deleted: a rollback
+# renames the upgraded database to pg.failed inside the folder.
+UP_NAME_RE='[0-9]{8}T[0-9]{6}Z-from-[A-Za-z0-9][A-Za-z0-9_.-]{0,127}'
+tree_count() { find "$1" | wc -l | tr -d ' '; }
+# the bytes of every regular file below a directory (wc's own total lines are skipped)
+tree_bytes() { find "$1" -type f -exec wc -c {} + | awk '$0 !~ /^ *[0-9]+ total$/ { s += $1 } END { printf "%.0f\n", s }'; }
+state_get() { sed -n "s/^$1=//p" "$UP_F/state" 2>/dev/null | tail -n 1; }
+state_stage() { # new stage
+  t="$(mktemp "$UP_F/state.XXXXXX")" && sed "s/^stage=.*/stage=$1/" "$UP_F/state" >"$t" && mine "$t" && mv -f "$t" "$UP_F/state"
+}
+confirm() { # question
+  [ "$YES" = 0 ] || return 0
+  [ -t 8 ] 2>/dev/null || refuse "$1 There is no terminal to ask: run it again with --yes"
+  printf 'setup: %s [y/N] ' "$1" >&2
+  answer=""; read -r answer <&8 || answer=""
+  case "$answer" in y|Y|yes|Yes|YES) return 0 ;; esac
+  refuse "not confirmed"
+}
+detect_demo() {
+  demo="$(docker ps -aq --filter "label=com.docker.compose.project=prisma-memory-$ID" --filter "label=com.docker.compose.service=demo-models" 9>&- 2>/dev/null)" \
+    || refuse "docker ps failed while looking for the model simulator of this installation"
+  if [ -n "$demo" ]; then DEMO=1; PROFILE_ARGS="--profile demo"; PRODUCT_SERVICES="gateway workers web demo-models"; fi
+}
+# db and s3, then the application, with the images on this host: never a build or a pull
+start_existing() {
+  # shellcheck disable=SC2086 # the fixed service list, plus demo-models when the installation has it
+  dc up -d --no-build --pull never --wait --wait-timeout 300 db s3 && dc up -d --no-build --pull never --wait --wait-timeout 900 --no-deps $PRODUCT_SERVICES
+}
+# every service: the application first, then db and s3
+stop_all() {
+  # shellcheck disable=SC2086
+  dc stop $PRODUCT_SERVICES && dc stop db s3
+}
+# The exit path of an upgrade that failed before its copy was complete: the data and .env were not changed.
+upgrade_restart_old() {
+  trap '' 1 2 15
+  UP_STAGE=rolling
+  printf 'setup: the upgrade stopped before the data was changed: starting %s again with its own images\n' "$UP_OLD_V" >&2
+  [ -z "$UP_DIR" ] || [ ! -e "$H/upgrade/$UP_DIR" ] || printf 'setup: %s is an incomplete copy and is not used: remove it\n' "$H/upgrade/$UP_DIR" >&2
+  if start_existing; then
+    printf 'setup: the installation runs %s again; nothing was changed\n' "$UP_OLD_V" >&2
+  else
+    printf 'setup: failed: %s did not start again: docker compose --project-directory %s logs; check out %s in this folder and run deploy/compose/setup\n' "$UP_OLD_V" "$D" "$UP_OLD_C" >&2
+  fi
+  exit 1
+}
+# The rollback cannot go on: say where everything is, keep upgrade/current, exit 1.
+upgrade_stuck() {
+  printf 'setup: failed: the rollback stopped: %s\n' "$1" >&2
+  if [ -d "$UP_F/pg" ]; then printf 'setup: where: %s holds the saved database of %s\n' "$UP_F/pg" "$rb_from" >&2; fi
+  for x in "$UP_F"/pg.failed*; do [ ! -d "$x" ] || printf 'setup: where: %s holds the database of %s\n' "$x" "$rb_to" >&2; done
+  if [ -d "$H/data/pg" ]; then printf 'setup: where: %s is the database the installation would use\n' "$H/data/pg" >&2
+  else printf 'setup: where: %s is missing\n' "$H/data/pg" >&2; fi
+  printf 'setup: where: %s is the saved .env of %s; %s names %s\n' "$UP_F/env" "$rb_from" "$ENVF" "$(env_get MEMORY_VERSION)" >&2
+  printf 'setup: where: %s is kept: fix the cause, then run deploy/compose/setup upgrade --rollback\n' "$H/upgrade/current" >&2
+  exit 1
+}
+upgrade_rollback() { # auto (the exit path of a failed upgrade) | demand (--rollback)
+  trap '' 1 2 15
+  UP_STAGE=rolling
+  rb_from="$(state_get from_version)"; rb_from_c="$(state_get from_commit)"; rb_to="$(state_get to_version)"
+  [ -n "$rb_from" ] || rb_from="$UP_OLD_V"; [ -n "$rb_from_c" ] || rb_from_c="$UP_OLD_C"; [ -n "$rb_to" ] || rb_to="$TREE_VERSION"
+  say "rollback: to $rb_from from $UP_F"
+  stop_all || upgrade_stuck "the services could not be stopped (docker compose --project-directory $D ps)"
+  if [ -d "$UP_F/pg" ] && [ ! -L "$UP_F/pg" ]; then
+    if [ -e "$H/data/pg" ] || [ -L "$H/data/pg" ]; then
+      failed="$UP_F/pg.failed"; i=2
+      while [ -e "$failed" ] || [ -L "$failed" ]; do failed="$UP_F/pg.failed.$i"; i=$((i + 1)); done
+      mv "$H/data/pg" "$failed" || upgrade_stuck "cannot move $H/data/pg to $failed"
+      say "rollback: the database of $rb_to moved to $failed"
+    fi
+    mv "$UP_F/pg" "$H/data/pg" || upgrade_stuck "cannot move $UP_F/pg back to $H/data/pg"
+    say "rollback: the saved database of $rb_from is $H/data/pg again"
+  elif [ -d "$H/data/pg" ] && [ -d "$UP_F/pg.failed" ]; then
+    say "rollback: $H/data/pg is already the saved database of $rb_from"
+  else
+    upgrade_stuck "the saved database $UP_F/pg is missing"
+  fi
+  t="$(mktemp "$D/.env.new.XXXXXX")" && cp "$UP_F/env" "$t" && chmod 0600 "$t" && mv -f "$t" "$ENVF" \
+    || upgrade_stuck "cannot put $UP_F/env back as $ENVF"
+  say "rollback: .env of $rb_from restored"
+  say "rollback: start $rb_from with its own images (no build, no pull)"
+  if start_existing; then
+    rm -f "$ISOLATION_MARKER" || true
+    state_stage rolled_back || say "warning: cannot write stage=rolled_back into $UP_F/state"
+    rm -f "$H/upgrade/current" || say "warning: cannot remove $H/upgrade/current"
+    if [ "$1" = auto ]; then
+      printf 'setup: the upgrade failed and was rolled back: the installation runs %s again\n' "$rb_from" >&2
+      printf 'setup: %s keeps the database of the failed upgrade (pg.failed); logs: docker compose --project-directory %s logs migrate gateway workers web\n' "$UP_F" "$D" >&2
+      printf 'setup: this tree stays checked out: fix the cause and run deploy/compose/setup upgrade again, or check out %s in this folder before setup runs\n' "$rb_from_c" >&2
+      exit 1
+    fi
+    say "rolled back: the installation runs $rb_from again; $UP_F keeps the database of $rb_to (pg.failed)"
+    say "to run setup again, check out $rb_from_c in this folder"
+    exit 0
+  fi
+  state_stage rolled_back || true
+  rm -f "$H/upgrade/current" || true
+  printf 'setup: failed: the data and .env of %s are restored, but %s did not start with its images on this host\n' "$rb_from" "$rb_from" >&2
+  printf 'setup: check out %s in this folder (git checkout %s) and run deploy/compose/setup; logs: docker compose --project-directory %s logs\n' "$rb_from_c" "$rb_from_c" "$D" >&2
+  exit 1
+}
+
+cmd_upgrade() {
+  DEMO=0; OPT_PROFILE=""; OPT_PUBLISH=""; OPT_HOME=""; OPT_INSTANCE=""; CHECK_ONLY=0; OPT_KIT=""; ROLLBACK=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --rollback) ROLLBACK=1 ;;
+      --yes) YES=1 ;;
+      --home) [ $# -ge 2 ] || usage "--home needs a directory"; OPT_HOME="$2"; shift ;;
+      --instance) [ $# -ge 2 ] || usage "--instance needs a name"; OPT_INSTANCE="$2"; shift ;;
+      --offline) [ $# -ge 2 ] && [ -n "$2" ] || usage "--offline needs a kit directory"; OPT_KIT="$2"; shift ;;
+      -h|--help) usage ;;
+      *) usage "setup upgrade: unknown argument: $1" ;;
+    esac
+    shift
+  done
+  [ "$ROLLBACK" = 0 ] || [ -z "$OPT_KIT" ] || usage "--rollback starts the images that are on this host: --offline does not apply"
+  UPGRADING=1
+  lock_install
+  if [ "$ROLLBACK" = 1 ]; then cmd_rollback; fi
+
+  # 1. checks; nothing is changed before the question
+  [ -f "$ENVF" ] && [ ! -L "$ENVF" ] && env_has MEMORY_VERSION && env_has MEMORY_COMMIT \
+    || refuse "no installation here: $ENVF does not name an installed version (MEMORY_VERSION, MEMORY_COMMIT); install with deploy/compose/setup"
+  UP_OLD_V="$(env_get MEMORY_VERSION)"; UP_OLD_C="$(env_get MEMORY_COMMIT)"
+  tree_version
+  [ "$TREE_VERSION" != 0.0.0-local ] || refuse "this tree has no version: setup upgrade needs a git clone or a VERSION file"
+  if [ "$TREE_VERSION" = "$UP_OLD_V" ] && [ "$TREE_COMMIT" = "$UP_OLD_C" ]; then
+    say "nothing to upgrade: the installation is $UP_OLD_V ($UP_OLD_C)"
+    exit 0
+  fi
+  [ "$TREE_VERSION" != "$UP_OLD_V" ] \
+    || refuse "this tree is $TREE_VERSION ($TREE_COMMIT), the installation is $UP_OLD_V ($UP_OLD_C): a build of the same version would replace the images a rollback starts; check out a tree with its own version"
+  preflight
+  [ "$INSTALLED" = 1 ] || refuse "no installation here: $H/data/pg/PG_VERSION is missing; install with deploy/compose/setup"
+  for tool in find du date; do command -v "$tool" >/dev/null 2>&1 || refuse "$tool is not installed: setup upgrade needs it to copy and check the database"; done
+  if [ -e "$H/upgrade" ] || [ -L "$H/upgrade" ]; then
+    check_path "$H/upgrade" dir
+    [ ! -e "$H/upgrade/current" ] && [ ! -L "$H/upgrade/current" ] \
+      || refuse "an unfinished upgrade is recorded in $H/upgrade/current: run deploy/compose/setup upgrade --rollback first"
+  fi
+  pg_kb="$(du -sk "$H/data/pg" 2>/dev/null | awk 'NR == 1 { print $1 }')"
+  printf '%s\n' "$pg_kb" | grep -Eqx '[0-9]+' || refuse "cannot measure $H/data/pg (du failed)"
+  free_kb="$(df -Pk "$H" | awk 'NR == 2 { print $4 }')"
+  need_kb=$((pg_kb + 1048576))
+  [ "${free_kb:-0}" -ge "$need_kb" ] 2>/dev/null \
+    || refuse "$H has $((${free_kb:-0} / 1024)) MB free; the copy of the database needs $((need_kb / 1024)) MB (the size of data/pg + 1 GiB)"
+  # a rollback renames data/pg into the saved folder and the copy back: a rename needs both on one file system
+  [ "$(df -Pk "$H/data/pg" | awk 'NR == 2 { print $1, $NF }')" = "$(df -Pk "$H" | awk 'NR == 2 { print $1, $NF }')" ] \
+    || refuse "$H/data/pg is on another file system than $H: setup upgrade keeps its copy of the database in $H/upgrade and needs both on one file system"
+  detect_demo
+  [ -z "$OPT_KIT" ] || check_kit
+  confirm "Upgrade the installation from $UP_OLD_V ($UP_OLD_C) to $TREE_VERSION ($TREE_COMMIT)? Every service stops while the database is copied and the new version starts."
+  sweep_staging
+
+  # 2. the new images while the installation still runs; the staged .env names the new version for the build
+  FAIL_HINT="the installation was not changed and still runs $UP_OLD_V: fix the cause and run deploy/compose/setup upgrade again"
+  say "upgrade: $UP_OLD_V ($UP_OLD_C) -> $TREE_VERSION ($TREE_COMMIT)"
+  ENV_TMP="$(mktemp "$D/.env.new.XXXXXX")" || fail "cannot stage the new .env"
+  sed -e "s/^MEMORY_VERSION=.*/MEMORY_VERSION=$TREE_VERSION/" -e "s/^MEMORY_COMMIT=.*/MEMORY_COMMIT=$TREE_COMMIT/" "$ENVF" >"$ENV_TMP" \
+    && chmod 0600 "$ENV_TMP" || fail "cannot write the new .env $ENV_TMP"
+  [ "$(sed -n 's/^MEMORY_VERSION=//p' "$ENV_TMP")" = "$TREE_VERSION" ] && [ "$(sed -n 's/^MEMORY_COMMIT=//p' "$ENV_TMP")" = "$TREE_COMMIT" ] \
+    || fail "the new .env does not name $TREE_VERSION ($TREE_COMMIT)"
+  installed_env="$ENVF"; ENVF="$ENV_TMP"
+  images
+  ENVF="$installed_env"; IMAGES_READY=1
+
+  # 3. stop; from here on a failure starts the old version again
+  UP_STAGE=stopping
+  FAIL_HINT="the upgrade is undone (below)"
+  say "stop: $PRODUCT_SERVICES, then db and s3"
+  stop_all || fail "the services did not stop (docker compose --project-directory $D ps)"
+
+  # 4. the saved state
+  ts="$(date -u +%Y%m%dT%H%M%SZ)" && printf '%s\n' "$ts" | grep -Eqx '[0-9]{8}T[0-9]{6}Z' || fail "date failed"
+  UP_DIR="$ts-from-$UP_OLD_V"; UP_F="$H/upgrade/$UP_DIR"
+  if [ ! -d "$H/upgrade" ]; then mkdir -m 0700 "$H/upgrade" || fail "cannot create $H/upgrade"; mine "$H/upgrade"; fi
+  mkdir -m 0700 "$UP_F" || fail "cannot create $UP_F"
+  mine "$UP_F"
+  say "save: copying $H/data/pg to $UP_F/pg"
+  cp -a "$H/data/pg" "$UP_F/pg" || fail "the copy of $H/data/pg failed (its output is above)"
+  cp -p "$ENVF" "$UP_F/env" || fail "the copy of $ENVF failed"
+  src_n="$(tree_count "$H/data/pg")"; dst_n="$(tree_count "$UP_F/pg")"
+  src_b="$(tree_bytes "$H/data/pg")"; dst_b="$(tree_bytes "$UP_F/pg")"
+  [ -n "$src_n" ] && [ "$src_n" = "$dst_n" ] && [ -n "$src_b" ] && [ "$src_b" = "$dst_b" ] && [ -f "$UP_F/pg/PG_VERSION" ] && cmp -s "$ENVF" "$UP_F/env" \
+    || fail "the copy in $UP_F differs from its source ($dst_n of $src_n paths, $dst_b of $src_b bytes)"
+  t="$(mktemp "$UP_F/state.XXXXXX")" || fail "cannot stage $UP_F/state"
+  printf 'from_version=%s\nfrom_commit=%s\nto_version=%s\nto_commit=%s\nstarted_at=%s\nstage=saved\n' \
+    "$UP_OLD_V" "$UP_OLD_C" "$TREE_VERSION" "$TREE_COMMIT" "$ts" >"$t" && mine "$t" && mv -f "$t" "$UP_F/state" \
+    || fail "cannot write $UP_F/state"
+  UP_STAGE=saved
+  t="$(mktemp "$H/upgrade/current.XXXXXX")" && printf '%s\n' "$UP_DIR" >"$t" && mine "$t" && mv -f "$t" "$H/upgrade/current" \
+    || fail "cannot write $H/upgrade/current"
+  say "saved: $UP_F ($src_n paths, $src_b bytes of data/pg, and .env)"
+  say "not copied: data/s3 and secrets; the upgrade does not change them"
+
+  # 5. .env names the new version; then exactly the steps of an install
+  mv -f "$ENV_TMP" "$ENVF" || fail "cannot write $ENVF"
+  ENV_TMP=""
+  say ".env: MEMORY_VERSION=$TREE_VERSION, MEMORY_COMMIT=$TREE_COMMIT"
+  write_env
+  check_compose_inputs
+  remember_home
+  make_dirs
+  make_secrets
+  make_storage_accounts
+  # 6.
+  start
+  provision
+  check_isolation
+
+  # 7.
+  UP_STAGE=done
+  state_stage done || say "warning: cannot write stage=done into $UP_F/state"
+  rm -f "$H/upgrade/current" || say "warning: cannot remove $H/upgrade/current"
+  printf '\n'
+  printf 'Upgraded: %s -> %s\n' "$UP_OLD_V" "$TREE_VERSION"
+  printf 'Version: %s (%s)\n' "$TREE_VERSION" "$TREE_COMMIT"
+  printf 'Saved state: %s (the database of %s; remove it once the new version has proved itself)\n' "$UP_F" "$UP_OLD_V"
+  printf 'Rollback: deploy/compose/setup upgrade --rollback (back to that copy; everything written since the upgrade is lost)\n'
+  exit 0
+}
+
+# --rollback: the folder of the unfinished upgrade, else the newest finished one
+cmd_rollback() {
+  preflight
+  UP_OLD_V="$(env_get MEMORY_VERSION)"; UP_OLD_C="$(env_get MEMORY_COMMIT)"
+  [ -d "$H/upgrade" ] && [ ! -L "$H/upgrade" ] || refuse "nothing to roll back: $H/upgrade does not exist"
+  check_path "$H/upgrade" dir
+  UP_DIR=""
+  if [ -e "$H/upgrade/current" ] || [ -L "$H/upgrade/current" ]; then
+    check_path "$H/upgrade/current" file loose
+    UP_DIR="$(cat "$H/upgrade/current")" || refuse "cannot read $H/upgrade/current"
+    printf '%s\n' "$UP_DIR" | grep -Eqx "$UP_NAME_RE" || refuse "$H/upgrade/current does not name an upgrade folder"
+  else
+    for f in "$H/upgrade"/*; do
+      [ -d "$f" ] && [ ! -L "$f" ] && [ -f "$f/state" ] || continue
+      printf '%s\n' "${f##*/}" | grep -Eqx "$UP_NAME_RE" || continue
+      ! grep -qx 'stage=done' "$f/state" || UP_DIR="${f##*/}"
+    done
+    [ -n "$UP_DIR" ] || refuse "nothing to roll back: no finished upgrade in $H/upgrade"
+  fi
+  UP_F="$H/upgrade/$UP_DIR"
+  check_path "$UP_F" dir
+  for f in state env; do
+    [ -f "$UP_F/$f" ] && [ ! -L "$UP_F/$f" ] || refuse "$UP_F/$f is missing: this folder cannot be rolled back"
+  done
+  [ -d "$UP_F/pg" ] || [ -d "$UP_F/pg.failed" ] || refuse "$UP_F holds no saved database (pg)"
+  [ -f "$UP_F/pg/PG_VERSION" ] || [ ! -d "$UP_F/pg" ] || refuse "$UP_F/pg holds no PG_VERSION: it is not a complete copy"
+  detect_demo
+  confirm "Roll back from $(state_get to_version) to $(state_get from_version) ($(state_get from_commit)) with the copy in $UP_F? The database returns to the copy made at $(state_get started_at): everything written since the upgrade is lost."
+  upgrade_rollback demand
+}
+
+case "${1:-}" in
+  ""|-*) cmd_install "$@" ;;
+  upgrade) shift; cmd_upgrade "$@" ;;
+  status|backup|restore|provision) printf 'setup: %s is not in this release yet\n' "$1" >&2; exit 2 ;;
+  *) usage "unknown command: $1" ;;
+esac
+SETUP_CLEAN_ENV

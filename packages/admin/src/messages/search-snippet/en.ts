@@ -1,0 +1,16 @@
+export const searchSnippet = {
+  meetingTranscript: (value0: unknown): string => `meeting transcript, ${value0}`,
+  meetingTranscript2: "meeting transcript",
+  fromAMeeting: (value0: unknown): string => `from a meeting, ${value0}`,
+  workProfileWrittenByTheColleague: "work profile: written by the colleague",
+  fromTheColleagueDirectory: "from the colleague directory",
+  p: (value0: unknown, value1: unknown): string => `p. ${value0}${value1}`,
+  section: (value0: unknown): string => `section “${value0}”`,
+  fromADocument: (value0: unknown): string => `from a document, ${value0}`,
+  fromADocument2: "from a document",
+  addedByAnAiAgent: (value0: unknown): string => `added by an AI agent, ${value0}`,
+  addedByAnAiAgent2: "added by an AI agent",
+  generatedAutomatically: (value0: unknown): string => `generated automatically, ${value0}`,
+  generatedAutomatically2: "generated automatically",
+  similarityOfTheBestMatch: (value0: unknown): string => `Similarity: ${value0}% of the best match`,
+};

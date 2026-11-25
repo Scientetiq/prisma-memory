@@ -1,0 +1,30 @@
+import type { Messages } from "../../i18n/core";
+import type * as en from "./en";
+
+export const TEXT: Messages<typeof en.TEXT> = {
+  thisKeyIsShownOnceAndIs: "Ключ показывается один раз и нигде не сохраняется: скопируйте его в хранилище секретов сейчас. После ухода с этой страницы увидеть его снова нельзя — только отозвать и выпустить новый.",
+  instanceSystemKey: "Системный ключ инстанса",
+  administratorCreated: (value1: string | number | null | undefined): string => `Администратор ${value1} создан`,
+  theAdministratorWasCreatedButTheGateway: "Администратор создан, но гейтвей не вернул системный ключ — выпустите новый в разделе «Сервисы и ключи»",
+  theGatewayIsNotResponding: "Гейтвей не отвечает",
+  thePasswordsDoNotMatch: "Пароль и подтверждение не совпадают",
+  thePasswordMustBeAtLeastCharacters: (value1: string | number | null | undefined): string => `Пароль — не короче ${value1} знаков`,
+  enterTheAdministratorSLogin: "Укажите логин администратора",
+  javascriptMustBeEnabledForInitialSetup: "Для первичной настройки нужен включённый JavaScript.",
+  createAdministrator: "Создать администратора",
+  creating: "Создание…",
+  thePasswordsDoNotMatch2: "Пароль и подтверждение не совпадают",
+  repeatPassword: "Пароль ещё раз",
+  atLeastCharacters: (value1: string | number | null | undefined): string => `Не короче ${value1} знаков.`,
+  password: "Пароль",
+  forExampleYourWorkEmailNotCase: "Например, рабочая почта. Регистр не важен.",
+  administratorLogin: "Логин администратора",
+  setupCode: "Код установки",
+  keySavedGoToSignIn: "Ключ сохранён — перейти ко входу",
+  theSystemKeyAutomatesTheAdminAPI: "Системный ключ нужен для автоматизации админ-API (загрузка орг-таблицы, выпуск ключей сервисам). В панель входят логином и паролем.",
+  saveTheSystemKeyToFinish: "<strong1>{value1}.</strong1> Осталось сохранить системный ключ.",
+  firstRun: "Первый запуск",
+  thisInstanceHasNoAdministratorYetCreate: "В инстансе ещё нет администратора. Создайте первичного локального администратора: учётные данные задаются здесь, в файлах проекта и переменных окружения их нет. После создания гейтвей один раз покажет системный ключ инстанса.",
+  firstRun2: "Первый запуск",
+  adminPanel: "панель",
+};

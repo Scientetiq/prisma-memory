@@ -1,0 +1,201 @@
+{
+  "name": "Prisma Memory: mail to signed webhook",
+  "active": false,
+  "nodes": [
+    {
+      "id": "node-1",
+      "name": "Run example",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "node-2",
+      "name": "Example input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: {\"base_url\": \"https://memory.example.test\", \"connector_id\": \"0199e000-0000-7000-8000-000000000017\", \"event_id\": \"mail:source-event-17:revision-1\", \"variant\": \"mail\", \"source\": {\"id\": \"mail/source-item-17\", \"subject\": \"Example mail\", \"text\": \"A plain text mail to remember.\"}} }];"
+      }
+    },
+    {
+      "id": "node-3",
+      "name": "Sign webhook",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// n8n Code node, Run Once for All Items. Allow only the crypto built-in on a trusted runner.\nconst input = { ...$input.first().json, signing_secret: $env.PRISMA_WEBHOOK_SECRET };\n// Standard Webhooks: send the returned body as raw UTF-8, without parsing or reserializing it.\nconst { createHmac } = require(\"crypto\");\nconst base = new URL(input.base_url);\nif (base.protocol !== \"https:\" || base.username || base.password || base.search || base.hash || base.pathname !== \"/\") {\n  throw new Error(\"Configure an HTTPS instance origin without credentials, path, query or fragment.\");\n}\nif (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(input.connector_id || \"\")) {\n  throw new Error(\"Configure the webhook connector UUID.\");\n}\n// Use the provider's stable event/revision id; a random execution id would defeat replay protection.\nif (typeof input.event_id !== \"string\" || !/^[A-Za-z0-9._:-]{1,256}$/.test(input.event_id)) {\n  throw new Error(\"Map a stable source event id using letters, digits, dots, underscores, colons or hyphens.\");\n}\nconst secret = input.signing_secret;\nif (typeof secret !== \"string\" || !secret.startsWith(\"whsec_\")) throw new Error(\"Configure the signing secret in protected storage.\");\nconst encoded = secret.slice(6);\nconst key = Buffer.from(encoded, \"base64\");\nif (key.length < 24 || key.length > 64 || key.toString(\"base64\") !== encoded) throw new Error(\"Invalid signing secret format.\");\nconst operation = input.operation || \"post\";\nif (![\"post\", \"status\"].includes(operation)) throw new Error(\"Unknown operation.\");\nlet item, external_id, type;\nif (operation === \"post\") {\n  const source = typeof input.source === \"string\" ? JSON.parse(input.source) : input.source;\n  if (!source || typeof source.id !== \"string\" || !source.id) throw new Error(\"Map the stable source item id.\");\n  external_id = source.id;\n  if (input.variant === \"mail\" || input.variant === \"form\") {\n    if (typeof source.text !== \"string\" || !source.text) throw new Error(\"Map nonempty plain text.\");\n    type = \"note\";\n    item = { type, external_id, text: source.text };\n    const title = input.variant === \"mail\" ? source.subject : source.title;\n    if (title) item.title = title;\n  } else if (input.variant === \"meeting\") {\n    type = \"meeting\";\n    if (typeof source.transcript !== \"string\" || !source.transcript || !source.started_at) throw new Error(\"Map the transcript and start time.\");\n    item = { type, external_id, started_at: source.started_at, language: source.language || \"en\", transcript: { text: source.transcript, format: \"plain\" } };\n    if (source.title) item.title = source.title;\n    item.participants = (source.participants || []).map((p) => {\n      const role = p.role === \"invitee\" ? \"invitee\" : p.role === \"host\" ? \"host\" : \"attendee\";\n      const participant = { role };\n      if (p.email) participant.email = p.email;\n      if (p.name) participant.name = p.name;\n      // This boolean must come from provider attendance evidence; calendar membership is insufficient.\n      if (role !== \"invitee\" && p.attendance_confirmed === true) participant.attended = true;\n      return participant;\n    });\n  } else throw new Error(\"Choose the mail, form or meeting variant.\");\n} else {\n  external_id = input.external_id;\n  type = input.type;\n  if (typeof external_id !== \"string\" || !external_id || ![\"note\", \"meeting\"].includes(type)) throw new Error(\"Map the original item id and type for the status lookup.\");\n}\n// Dot-only path segments are normalized away by URL clients, even when percent-encoded.\nif (external_id === \".\" || external_id === \"..\") throw new Error(\"Prefix dot-only source ids with a stable source namespace.\");\n// Serialize once. GET is signed over an empty body, never over the original POST payload.\nconst body = operation === \"status\" ? \"\" : JSON.stringify({ items: [item] });\nconst timestamp = String(Math.floor(Date.now() / 1000));\nconst signature = \"v1,\" + createHmac(\"sha256\", key).update(`${input.event_id}.${timestamp}.`, \"utf8\").update(body, \"utf8\").digest(\"base64\");\nconst url = `${base.origin}/api/v1/hooks/${input.connector_id}`\n  + (operation === \"status\" ? `/items/${encodeURIComponent(external_id)}?type=${encodeURIComponent(type)}` : \"\");\n// Never return the secret or the whole input object to the platform's execution history.\nconst result = {\n  url, method: operation === \"status\" ? \"GET\" : \"POST\", body, external_id, type,\n  base_url: base.origin, connector_id: input.connector_id, event_id: input.event_id,\n  headers: { \"content-type\": \"application/json\", \"webhook-id\": input.event_id, \"webhook-timestamp\": timestamp, \"webhook-signature\": signature },\n};\nreturn [{ json: result }];\n"
+      }
+    },
+    {
+      "id": "node-4",
+      "name": "Send webhook",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.url }}",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={{ JSON.stringify($json.headers) }}",
+        "sendBody": true,
+        "options": {
+          "redirect": {
+            "redirect": {
+              "followRedirects": false
+            }
+          },
+          "timeout": 30000
+        },
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $json.body }}"
+      }
+    },
+    {
+      "id": "node-5",
+      "name": "Wait for delivery",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        960,
+        0
+      ],
+      "parameters": {
+        "resume": "timeInterval",
+        "amount": 10,
+        "unit": "seconds"
+      }
+    },
+    {
+      "id": "node-6",
+      "name": "Sign status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// n8n Code node: read the original signing output after the HTTP response replaced the input.\nconst input = { ...$(\"Sign webhook\").first().json, operation: \"status\", signing_secret: $env.PRISMA_WEBHOOK_SECRET };\n// Standard Webhooks: send the returned body as raw UTF-8, without parsing or reserializing it.\nconst { createHmac } = require(\"crypto\");\nconst base = new URL(input.base_url);\nif (base.protocol !== \"https:\" || base.username || base.password || base.search || base.hash || base.pathname !== \"/\") {\n  throw new Error(\"Configure an HTTPS instance origin without credentials, path, query or fragment.\");\n}\nif (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(input.connector_id || \"\")) {\n  throw new Error(\"Configure the webhook connector UUID.\");\n}\n// Use the provider's stable event/revision id; a random execution id would defeat replay protection.\nif (typeof input.event_id !== \"string\" || !/^[A-Za-z0-9._:-]{1,256}$/.test(input.event_id)) {\n  throw new Error(\"Map a stable source event id using letters, digits, dots, underscores, colons or hyphens.\");\n}\nconst secret = input.signing_secret;\nif (typeof secret !== \"string\" || !secret.startsWith(\"whsec_\")) throw new Error(\"Configure the signing secret in protected storage.\");\nconst encoded = secret.slice(6);\nconst key = Buffer.from(encoded, \"base64\");\nif (key.length < 24 || key.length > 64 || key.toString(\"base64\") !== encoded) throw new Error(\"Invalid signing secret format.\");\nconst operation = input.operation || \"post\";\nif (![\"post\", \"status\"].includes(operation)) throw new Error(\"Unknown operation.\");\nlet item, external_id, type;\nif (operation === \"post\") {\n  const source = typeof input.source === \"string\" ? JSON.parse(input.source) : input.source;\n  if (!source || typeof source.id !== \"string\" || !source.id) throw new Error(\"Map the stable source item id.\");\n  external_id = source.id;\n  if (input.variant === \"mail\" || input.variant === \"form\") {\n    if (typeof source.text !== \"string\" || !source.text) throw new Error(\"Map nonempty plain text.\");\n    type = \"note\";\n    item = { type, external_id, text: source.text };\n    const title = input.variant === \"mail\" ? source.subject : source.title;\n    if (title) item.title = title;\n  } else if (input.variant === \"meeting\") {\n    type = \"meeting\";\n    if (typeof source.transcript !== \"string\" || !source.transcript || !source.started_at) throw new Error(\"Map the transcript and start time.\");\n    item = { type, external_id, started_at: source.started_at, language: source.language || \"en\", transcript: { text: source.transcript, format: \"plain\" } };\n    if (source.title) item.title = source.title;\n    item.participants = (source.participants || []).map((p) => {\n      const role = p.role === \"invitee\" ? \"invitee\" : p.role === \"host\" ? \"host\" : \"attendee\";\n      const participant = { role };\n      if (p.email) participant.email = p.email;\n      if (p.name) participant.name = p.name;\n      // This boolean must come from provider attendance evidence; calendar membership is insufficient.\n      if (role !== \"invitee\" && p.attendance_confirmed === true) participant.attended = true;\n      return participant;\n    });\n  } else throw new Error(\"Choose the mail, form or meeting variant.\");\n} else {\n  external_id = input.external_id;\n  type = input.type;\n  if (typeof external_id !== \"string\" || !external_id || ![\"note\", \"meeting\"].includes(type)) throw new Error(\"Map the original item id and type for the status lookup.\");\n}\n// Dot-only path segments are normalized away by URL clients, even when percent-encoded.\nif (external_id === \".\" || external_id === \"..\") throw new Error(\"Prefix dot-only source ids with a stable source namespace.\");\n// Serialize once. GET is signed over an empty body, never over the original POST payload.\nconst body = operation === \"status\" ? \"\" : JSON.stringify({ items: [item] });\nconst timestamp = String(Math.floor(Date.now() / 1000));\nconst signature = \"v1,\" + createHmac(\"sha256\", key).update(`${input.event_id}.${timestamp}.`, \"utf8\").update(body, \"utf8\").digest(\"base64\");\nconst url = `${base.origin}/api/v1/hooks/${input.connector_id}`\n  + (operation === \"status\" ? `/items/${encodeURIComponent(external_id)}?type=${encodeURIComponent(type)}` : \"\");\n// Never return the secret or the whole input object to the platform's execution history.\nconst result = {\n  url, method: operation === \"status\" ? \"GET\" : \"POST\", body, external_id, type,\n  base_url: base.origin, connector_id: input.connector_id, event_id: input.event_id,\n  headers: { \"content-type\": \"application/json\", \"webhook-id\": input.event_id, \"webhook-timestamp\": timestamp, \"webhook-signature\": signature },\n};\nreturn [{ json: result }];\n"
+      }
+    },
+    {
+      "id": "node-7",
+      "name": "Read status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1440,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.url }}",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={{ JSON.stringify($json.headers) }}",
+        "sendBody": false,
+        "options": {
+          "redirect": {
+            "redirect": {
+              "followRedirects": false
+            }
+          },
+          "timeout": 30000
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Run example": {
+      "main": [
+        [
+          {
+            "node": "Example input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Example input": {
+      "main": [
+        [
+          {
+            "node": "Sign webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sign webhook": {
+      "main": [
+        [
+          {
+            "node": "Send webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send webhook": {
+      "main": [
+        [
+          {
+            "node": "Wait for delivery",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for delivery": {
+      "main": [
+        [
+          {
+            "node": "Sign status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sign status": {
+      "main": [
+        [
+          {
+            "node": "Read status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

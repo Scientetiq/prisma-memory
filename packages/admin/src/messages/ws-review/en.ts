@@ -1,0 +1,30 @@
+export const texts = {
+  confirm: "Confirm",
+  delete: "Delete",
+  moreDetails: "More details",
+  awaitingADecision: (value0: unknown): string => `Awaiting a decision: ${value0}`,
+  hiddenFromAgentsUntilYouDecideThese: (value0: unknown): string => `Hidden from agents until you decide: ${value0} — these appear first.`,
+  nothingFurther: "Nothing further.",
+  record: "Record",
+  author: "Author",
+  whereFromAndWhen: "Where from and when",
+  marks: "Marks",
+  decision: "Decision",
+  record2: "Record",
+  untitled: "Untitled",
+  author2: "Author",
+  leftTheCompany: "left the company",
+  whereFromAndWhen2: "Where from and when",
+  marks2: "Marks",
+  decision2: "Decision",
+  oldestRecordArrivedOnLine: "Oldest record arrived on <tag1/>.",
+  arrivedOnLine: "arrived on <tag1/> · {value1}",
+};
+
+export const actions = {
+  chooseWrongOrNotForEveryone: "Choose “Wrong” or “Not for everyone”.",
+  explainWhatIsCorrectThisWillBecome: "Explain what is correct: this will become a record correction.",
+  tooLongMaximum2000Characters: "Too long: maximum 2,000 characters.",
+  recordNotFoundOrNotVisibleTo: "Record not found or not visible to you.",
+  unknownAction: "Unknown action.",
+};

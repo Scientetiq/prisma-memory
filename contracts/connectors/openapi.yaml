@@ -1,0 +1,1283 @@
+openapi: 3.1.0
+info:
+  title: Connectors · items, webhook and push API, administration
+  version: 1.1.0
+  x-version-notes:
+    - "Version 1.1.0: the first public version."
+  summary: How external systems bring documents, meetings, notes and entities into memory
+  description: |
+    The contract of connectors: the normalised items that a connector delivers (`./schemas/`), the public routes that
+    receive them from external systems (`/api/v1/hooks/*`), and the administration routes of connectors
+    (`/api/v1/admin/connectors*`, served only on the admin listener).
+
+    **Items.** An item is a `document`, a `meeting`, a `note`, an `entity` of an external system, or a `delete` of one
+    of them in the source (`./schemas/item.schema.json`). The key of an item is `(connector, type, external_id)`;
+    sending the same item again with the same content changes nothing. One-line fields (ids, titles, names, links)
+    refuse control, line-separator and bidirectional-override characters: the receiver refuses such an item, it does
+    not repair it. Connector authors use the same schemas through the SDK.
+
+    **Receiving.** `POST /api/v1/hooks/{connector_id}` takes 1–50 items of the generic `webhook` kind, or the event of
+    a vendor kind (a kind whose manifest declares `capabilities.webhook`; the body is then the vendor's event and is
+    never trusted as content). Every request is signed by the Standard Webhooks scheme: headers `webhook-id`,
+    `webhook-timestamp` (within 300 seconds of the receiver's clock) and `webhook-signature` (`v1,<base64>` of
+    HMAC-SHA256 over `<webhook-id>.<webhook-timestamp>.<body>`, several separated by spaces). A bearer push token
+    (`pmc_…`) is a separate mode, off by default. An accepted request answers `202` once the items are staged; staged
+    is not yet delivered — the item state route tells the outcome. The same `webhook-id` again answers `200` with
+    `duplicate: true` and does nothing.
+
+    **Refusals.** An unknown connector, a connector that is not active, a kind that does not take webhooks and a
+    switched-off feature answer the same `404`. A bad signature answers `401` without saying why. Errors use the shape
+    `Error` of the main REST contract with its existing codes only; a connector-specific cause is a `reason` code,
+    never a new `code`.
+
+    **Administration.** The admin routes are marked `x-admin-listener: true`: they exist only on the admin listener,
+    with an administrator session, and each has a row in `contracts/admin/admin-routes.json`. Secrets are write-only:
+    an answer carries a fingerprint, and the webhook secret is shown once, when it is created or rotated.
+
+    **Versioning.** This contract has its own version, independent of the MCP and REST contracts. The versioned files
+    are this file, the schemas under `./schemas/` and the worked examples under `./examples/`; `info.version` is their
+    one version number. A change of any of them raises the minor version once and adds a note starting with
+    "Version X.Y.Z" to `info.x-version-notes`.
+servers:
+  - url: /
+tags:
+  - name: hooks
+    description: Public routes that receive items from external systems.
+  - name: admin
+    description: Administration of connectors (admin listener only).
+paths:
+  /api/v1/hooks/{connector_id}:
+    post:
+      operationId: deliverConnectorItems
+      tags: [hooks]
+      summary: Deliver items (or a vendor event) to a connector
+      description: |
+        Order of processing: switched-off feature, connector id and per-address limit (before any database access) →
+        connector (`active`, kind takes webhooks) → per-connector limit → body size → signature → replay (`webhook-id`)
+        → schema → daily quota → staging. Each step ends the request on failure. The body is the item list of
+        `./schemas/webhook-request.schema.json` for the generic `webhook` kind, or the vendor's event for a vendor kind.
+      security:
+        - StandardWebhooks: []
+        - PushToken: []
+      parameters:
+        - $ref: '#/components/parameters/ConnectorId'
+        - $ref: '#/components/parameters/WebhookId'
+        - $ref: '#/components/parameters/WebhookTimestamp'
+        - $ref: '#/components/parameters/WebhookSignature'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: './schemas/webhook-request.schema.json'
+            examples:
+              items:
+                summary: A note, a company and a deletion
+                value:
+                  items:
+                    - type: note
+                      external_id: form-reply-301
+                      text: Customer asked for an on-site demo in November.
+                    - type: entity
+                      external_id: company:42
+                      kind: company
+                      id: '42'
+                      name: Example Industries Ltd
+                    - type: delete
+                      external_id: wiki/onboarding
+                      of: document
+      responses:
+        '202':
+          description: The items are staged. Delivery is asynchronous; the item state route tells the outcome.
+          content:
+            application/json:
+              schema:
+                $ref: './schemas/webhook-response.schema.json#/$defs/Accepted'
+              examples:
+                accepted:
+                  value:
+                    event_id: msg_2mVb7d1x9QkQe
+                    items:
+                      - external_id: form-reply-301
+                        type: note
+                        status: staged
+                      - external_id: company:42
+                        type: entity
+                        status: delivered
+                      - external_id: wiki/onboarding
+                        type: document
+                        status: deleted_at_source
+        '200':
+          description: The event (`webhook-id`) was received before; nothing was done again.
+          content:
+            application/json:
+              schema:
+                $ref: './schemas/webhook-response.schema.json#/$defs/Duplicate'
+              examples:
+                duplicate:
+                  value:
+                    event_id: msg_2mVb7d1x9QkQe
+                    duplicate: true
+        '400':
+          description: The body is not JSON or does not match the schemas; up to five problems, by JSON pointer.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                invalid:
+                  value:
+                    code: invalid_argument
+                    message: The request body does not match the connectors contract.
+                    details:
+                      problems:
+                        - pointer: /items/0/external_id
+                          keyword: maxLength
+        '401':
+          description: The signature, the timestamp window or the push token did not verify. The answer does not say which.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                unauthorized:
+                  value:
+                    code: unauthorized
+                    message: The request is not authenticated.
+        '404':
+          description: Unknown connector, connector not active, a kind that takes no webhooks, or webhooks switched off.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                not_found:
+                  value:
+                    code: not_found
+                    message: Not found.
+        '413':
+          description: The body is larger than the configured limit.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                too_large:
+                  value:
+                    code: too_large
+                    message: The request body is too large.
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/v1/hooks/{connector_id}/items/{external_id}:
+    get:
+      operationId: getConnectorItemState
+      tags: [hooks]
+      summary: State of one item
+      description: |
+        Status, reason, record id and version of one item — never its content. Signed like a delivery, over an empty
+        body; only the timestamp window applies (the request is read-only and is not recorded as an event).
+      security:
+        - StandardWebhooks: []
+        - PushToken: []
+      parameters:
+        - $ref: '#/components/parameters/ConnectorId'
+        - name: external_id
+          in: path
+          required: true
+          description: The external id of the item, percent-encoded.
+          schema:
+            $ref: './schemas/item.schema.json#/$defs/ExternalId'
+        - name: type
+          in: query
+          required: true
+          schema:
+            $ref: './schemas/item.schema.json#/$defs/ItemType'
+        - $ref: '#/components/parameters/WebhookId'
+        - $ref: '#/components/parameters/WebhookTimestamp'
+        - $ref: '#/components/parameters/WebhookSignature'
+      responses:
+        '200':
+          description: The state of the item.
+          content:
+            application/json:
+              schema:
+                $ref: './schemas/webhook-response.schema.json#/$defs/ItemState'
+              examples:
+                delivered:
+                  value:
+                    external_id: wiki/onboarding
+                    type: document
+                    status: delivered
+                    record_id: 0192f4a0-7c1e-7b3a-9d2e-5f6a7b8c9d0e
+                    version: 2
+                held:
+                  value:
+                    external_id: call-2026-10-03-1000
+                    type: meeting
+                    status: held
+                    reason: consent:version_changed
+        '401':
+          description: The signature, the timestamp window or the push token did not verify. The answer does not say which.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                unauthorized:
+                  value:
+                    code: unauthorized
+                    message: The request is not authenticated.
+        '404':
+          description: Unknown connector or item, or webhooks switched off.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                not_found:
+                  value:
+                    code: not_found
+                    message: Not found.
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /api/v1/admin/connectors/kinds:
+    get:
+      operationId: listConnectorKinds
+      tags: [admin]
+      summary: Connector kinds of this installation and their presets
+      x-admin-listener: true
+      security:
+        - AdminSession: []
+      responses:
+        '200':
+          description: Manifests of the compiled-in kinds (and of the switched-on packs), with their presets.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KindList'
+              examples:
+                kinds:
+                  value:
+                    kinds:
+                      - kind: webhook
+                        sdk: 1
+                        version: 1.0.0
+                        title: Webhook
+                        description: Receives signed items from any automation tool.
+                        verified: live
+                        scopes: [instance, person]
+                        produces: [document, meeting, note, entity]
+                        capabilities:
+                          webhook: standard_webhooks
+                        config:
+                          type: object
+                        secrets: []
+                        egress:
+                          hosts: [hooks.example.com]
+                        limits:
+                          minIntervalSec: 60
+                          maxItemsPerRun: 500
+                          maxBytesPerItem: 8388608
+                    presets: []
+        '401':
+          $ref: '#/components/responses/AdminUnauthorized'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+  /api/v1/admin/connectors:
+    get:
+      operationId: listConnectors
+      tags: [admin]
+      summary: Connectors, newest first
+      x-admin-listener: true
+      security:
+        - AdminSession: []
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: A page of connectors.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConnectorList'
+        '400':
+          $ref: '#/components/responses/AdminBadRequest'
+        '401':
+          $ref: '#/components/responses/AdminUnauthorized'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+    post:
+      operationId: createConnector
+      tags: [admin]
+      summary: Create a connector (status draft)
+      description: |
+        A new connector starts as `draft`: it neither pulls nor accepts webhooks until a test passed and it is resumed.
+        A kind that takes webhooks gets a webhook secret, shown once in this answer. Meetings and personal-space
+        targets run as the administrator who creates the connector and acknowledges the consent text; `owner_id` names
+        another run-as person only for team targets.
+      x-admin-listener: true
+      security:
+        - AdminSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConnectorCreate'
+            examples:
+              webhook:
+                value:
+                  kind: webhook
+                  name: Forms of the support team
+                  scope: instance
+                  target_space_id: 0192f4a0-0000-7000-8000-000000000001
+                  config:
+                    language: en
+      responses:
+        '201':
+          description: The connector, and its webhook secret once.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConnectorCreated'
+        '400':
+          $ref: '#/components/responses/AdminBadRequest'
+        '401':
+          $ref: '#/components/responses/AdminUnauthorized'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '409':
+          $ref: '#/components/responses/AdminConflict'
+  /api/v1/admin/connectors/{id}:
+    get:
+      operationId: getConnector
+      tags: [admin]
+      summary: One connector
+      x-admin-listener: true
+      security:
+        - AdminSession: []
+      parameters:
+        - $ref: '#/components/parameters/AdminConnectorId'
+      responses:
+        '200':
+          description: The connector. Secrets appear as fingerprints only.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Connector'
+        '401':
+          $ref: '#/components/responses/AdminUnauthorized'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/AdminNotFound'
+    patch:
+      operationId: updateConnector
+      tags: [admin]
+      summary: Change a connector
+      description: |
+        `kind` and `scope` never change, and neither does the run-as person of a meeting or personal-space connector
+        (delete it and create it again). Changing the target space, the data class or the run-as person of a team
+        connector pauses it until an explicit resume, so that staged items do not land in a new place by surprise.
+      x-admin-listener: true
+      security:
+        - AdminSession: []
+      parameters:
+        - $ref: '#/components/parameters/AdminConnectorId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConnectorPatch'
+      responses:
+        '200':
+          description: The changed connector.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Connector'
+        '400':
+          $ref: '#/components/responses/AdminBadRequest'
+        '401':
+          $ref: '#/components/responses/AdminUnauthorized'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/AdminNotFound'
+        '409':
+          $ref: '#/components/responses/AdminConflict'
+    delete:
+      operationId: deleteConnector
+      tags: [admin]
+      summary: Delete a connector
+      description: The connector stops at once; records it delivered stay. Its secrets and staged bodies are removed.
+      x-admin-listener: true
+      security:
+        - AdminSession: []
+      parameters:
+        - $ref: '#/components/parameters/AdminConnectorId'
+      responses:
+        '204':
+          description: Deleted.
+        '401':
+          $ref: '#/components/responses/AdminUnauthorized'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/AdminNotFound'
+  /api/v1/admin/connectors/{id}/secrets/{name}:
+    put:
+      operationId: setConnectorSecret
+      tags: [admin]
+      summary: Set a secret of a connector (write-only)
+      x-admin-listener: true
+      security:
+        - AdminSession: []
+      parameters:
+        - $ref: '#/components/parameters/AdminConnectorId'
+        - name: name
+          in: path
+          required: true
+          description: A secret named by the kind's manifest.
+          schema:
+            type: string
+            pattern: '^[a-z][a-z0-9_]{0,31}$'
+            not:
+              pattern: '[\u0000-\u001f\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069]'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SecretSet'
+      responses:
+        '200':
+          description: Stored. The value is never returned; the fingerprint tells two values apart.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SecretSaved'
+              examples:
+                saved:
+                  value:
+                    name: api_token
+                    fingerprint: 3f9a1c0b7e2d
+                    updated_at: '2026-11-12T10:00:00Z'
+        '400':
+          $ref: '#/components/responses/AdminBadRequest'
+        '401':
+          $ref: '#/components/responses/AdminUnauthorized'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/AdminNotFound'
+  /api/v1/admin/connectors/{id}/webhook-secret/rotate:
+    post:
+      operationId: rotateConnectorWebhookSecret
+      tags: [admin]
+      summary: Rotate the webhook secret
+      description: A new secret is shown once; the previous one still verifies for 24 hours.
+      x-admin-listener: true
+      security:
+        - AdminSession: []
+      parameters:
+        - $ref: '#/components/parameters/AdminConnectorId'
+      responses:
+        '200':
+          description: The new secret (once) and until when the previous one is valid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookSecretRotated'
+        '401':
+          $ref: '#/components/responses/AdminUnauthorized'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/AdminNotFound'
+        '409':
+          $ref: '#/components/responses/AdminConflict'
+  /api/v1/admin/connectors/{id}/test:
+    post:
+      operationId: testConnector
+      tags: [admin]
+      summary: Test reachability and authentication (nothing is written)
+      x-admin-listener: true
+      security:
+        - AdminSession: []
+      parameters:
+        - $ref: '#/components/parameters/AdminConnectorId'
+      responses:
+        '202':
+          $ref: '#/components/responses/RunQueued'
+        '401':
+          $ref: '#/components/responses/AdminUnauthorized'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/AdminNotFound'
+        '409':
+          $ref: '#/components/responses/AdminConflict'
+  /api/v1/admin/connectors/{id}/run:
+    post:
+      operationId: runConnector
+      tags: [admin]
+      summary: Start a sync now
+      x-admin-listener: true
+      security:
+        - AdminSession: []
+      parameters:
+        - $ref: '#/components/parameters/AdminConnectorId'
+      responses:
+        '202':
+          $ref: '#/components/responses/RunQueued'
+        '401':
+          $ref: '#/components/responses/AdminUnauthorized'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/AdminNotFound'
+        '409':
+          $ref: '#/components/responses/AdminConflict'
+  /api/v1/admin/connectors/{id}/pause:
+    post:
+      operationId: pauseConnector
+      tags: [admin]
+      summary: Pause a connector (allowed in break-glass)
+      x-admin-listener: true
+      security:
+        - AdminSession: []
+      parameters:
+        - $ref: '#/components/parameters/AdminConnectorId'
+      responses:
+        '200':
+          $ref: '#/components/responses/ConnectorState'
+        '401':
+          $ref: '#/components/responses/AdminUnauthorized'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/AdminNotFound'
+  /api/v1/admin/connectors/{id}/resume:
+    post:
+      operationId: resumeConnector
+      tags: [admin]
+      summary: Resume (or activate) a connector
+      x-admin-listener: true
+      security:
+        - AdminSession: []
+      parameters:
+        - $ref: '#/components/parameters/AdminConnectorId'
+      responses:
+        '200':
+          $ref: '#/components/responses/ConnectorState'
+        '401':
+          $ref: '#/components/responses/AdminUnauthorized'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/AdminNotFound'
+        '409':
+          $ref: '#/components/responses/AdminConflict'
+  /api/v1/admin/connectors/{id}/reconfirm:
+    post:
+      operationId: reconfirmConnector
+      tags: [admin]
+      summary: Acknowledge the current consent text again (needs_reconfirm)
+      description: Only the run-as person who acknowledged the consent may acknowledge it again; held meeting items then resume.
+      x-admin-listener: true
+      security:
+        - AdminSession: []
+      parameters:
+        - $ref: '#/components/parameters/AdminConnectorId'
+      responses:
+        '200':
+          $ref: '#/components/responses/ConnectorState'
+        '401':
+          $ref: '#/components/responses/AdminUnauthorized'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/AdminNotFound'
+        '409':
+          $ref: '#/components/responses/AdminConflict'
+  /api/v1/admin/connectors/{id}/runs:
+    get:
+      operationId: listConnectorRuns
+      tags: [admin]
+      summary: Runs of a connector, newest first
+      x-admin-listener: true
+      security:
+        - AdminSession: []
+      parameters:
+        - $ref: '#/components/parameters/AdminConnectorId'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: A page of runs.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunList'
+        '400':
+          $ref: '#/components/responses/AdminBadRequest'
+        '401':
+          $ref: '#/components/responses/AdminUnauthorized'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/AdminNotFound'
+  /api/v1/admin/connectors/{id}/items:
+    get:
+      operationId: listConnectorItems
+      tags: [admin]
+      summary: Items of a connector and their states (never content)
+      x-admin-listener: true
+      security:
+        - AdminSession: []
+      parameters:
+        - $ref: '#/components/parameters/AdminConnectorId'
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: './schemas/item.schema.json#/$defs/ItemStatus'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: A page of item states.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ItemList'
+              examples:
+                held:
+                  value:
+                    items:
+                      - external_id: call-2026-10-03-1000
+                        type: meeting
+                        status: held
+                        reason: consent:version_changed
+                    next_cursor: eyJhZnRlciI6MX0
+        '400':
+          $ref: '#/components/responses/AdminBadRequest'
+        '401':
+          $ref: '#/components/responses/AdminUnauthorized'
+        '403':
+          $ref: '#/components/responses/AdminForbidden'
+        '404':
+          $ref: '#/components/responses/AdminNotFound'
+components:
+  securitySchemes:
+    StandardWebhooks:
+      type: apiKey
+      in: header
+      name: webhook-signature
+      description: |
+        Standard Webhooks signature: `v1,<base64>` of HMAC-SHA256 with the connector's webhook secret over
+        `<webhook-id>.<webhook-timestamp>.<body>`, together with the headers `webhook-id` and `webhook-timestamp`.
+        While a rotated secret is still valid, both the new and the previous secret verify. At most ten signatures of
+        one header are examined. Comparison is constant-time.
+    PushToken:
+      type: http
+      scheme: bearer
+      bearerFormat: pmc_…
+      description: |
+        Bearer push token of a connector. Off by default (`integrations.webhooks_shared_secret_enabled`): it proves
+        who sends, not that the body is authentic; replay is cut only by item idempotency.
+    AdminSession:
+      type: http
+      scheme: bearer
+      bearerFormat: mem_as_…
+      description: Administrator session of the admin listener (the same scheme as in the main REST contract).
+  parameters:
+    ConnectorId:
+      name: connector_id
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+        not:
+          pattern: '[\u0000-\u001f\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069]'
+    WebhookId:
+      name: webhook-id
+      in: header
+      required: false
+      description: Unique id of the event (Standard Webhooks); the key of replay protection. Required unless a push token is used.
+      schema:
+        type: string
+        pattern: '^[A-Za-z0-9._:\-]{1,256}$'
+        not:
+          pattern: '[\u0000-\u001f\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069]'
+    WebhookTimestamp:
+      name: webhook-timestamp
+      in: header
+      required: false
+      description: Seconds since the Unix epoch (Standard Webhooks). Required unless a push token is used.
+      schema:
+        type: string
+        pattern: '^[0-9]{1,12}$'
+        not:
+          pattern: '[\u0000-\u001f\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069]'
+    WebhookSignature:
+      name: webhook-signature
+      in: header
+      required: false
+      description: One or more `v1,<base64>` signatures separated by spaces (Standard Webhooks). Required unless a push token is used.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 1024
+        not:
+          pattern: '[\u0000-\u001f\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069]'
+    AdminConnectorId:
+      name: id
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/Uuid'
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      description: The `next_cursor` of the previous page; opaque.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 512
+        pattern: '^[A-Za-z0-9_\-]+$'
+        not:
+          pattern: '[\u0000-\u001f\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069]'
+  responses:
+    RateLimited:
+      description: Too many requests (per source address or per connector), or the daily quota of the connector is used up.
+      headers:
+        Retry-After:
+          description: Seconds to wait before the next attempt.
+          schema:
+            type: integer
+            minimum: 0
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            rate_limited:
+              value:
+                code: rate_limited
+                message: Too many requests.
+                retry_after: 30
+            quota:
+              value:
+                code: rate_limited
+                message: The daily quota of the connector is used up.
+                reason: connector_quota:items
+                retry_after: 3600
+    Unavailable:
+      description: Storage for staged items is not available; the sender retries later.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            unavailable:
+              value:
+                code: internal
+                message: The service is temporarily unavailable.
+                retry_after: 60
+    RunQueued:
+      description: The run is queued; its outcome appears in the runs of the connector.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RunQueued'
+          examples:
+            queued:
+              value:
+                run_id: 0192f4a0-0000-7000-8000-0000000000aa
+    ConnectorState:
+      description: The connector after the change.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Connector'
+    AdminBadRequest:
+      description: The request does not match the contract.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            invalid:
+              value:
+                code: invalid_argument
+                message: The connector configuration does not match the schema of its kind.
+                reason: connector_config
+                details:
+                  problems:
+                    - pointer: /config/base_url
+                      keyword: required
+    AdminUnauthorized:
+      description: No valid administrator session.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            unauthorized:
+              value:
+                code: unauthorized
+                message: The request is not authenticated.
+    AdminForbidden:
+      description: The role or the session class does not allow this route (see contracts/admin/admin-routes.json).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            forbidden:
+              value:
+                code: forbidden
+                message: This session may not do this.
+    AdminNotFound:
+      description: No such connector.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            not_found:
+              value:
+                code: not_found
+                message: Not found.
+    AdminConflict:
+      description: The connector is not in a state that allows this (for example a run is going, or the kind takes no webhooks).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            conflict:
+              value:
+                code: conflict
+                message: A run of this connector is already going.
+                reason: connector_busy
+  schemas:
+    Error:
+      description: |
+        The error shape of the main REST contract, restricted to the codes these routes use. A connector-specific cause
+        is a `reason` code (`connector_quota:items`), never a new `code`.
+      type: object
+      required: [code, message]
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+          enum: [unauthorized, forbidden, not_found, invalid_argument, conflict, too_large, rate_limited, internal]
+        message:
+          type: string
+        hint:
+          type: string
+        retry_after:
+          type: integer
+          minimum: 0
+        reason:
+          $ref: './schemas/item.schema.json#/$defs/ReasonCode'
+        details:
+          type: object
+          additionalProperties: false
+          properties:
+            problems:
+              type: array
+              maxItems: 5
+              items:
+                type: object
+                required: [pointer, keyword]
+                additionalProperties: false
+                properties:
+                  pointer:
+                    type: string
+                    maxLength: 512
+                  keyword:
+                    type: string
+                    maxLength: 64
+    Uuid:
+      type: string
+      pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+      not:
+        pattern: '[\u0000-\u001f\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069]'
+    Kind:
+      type: string
+      pattern: '^[a-z][a-z0-9_]{1,31}$'
+      not:
+        pattern: '[\u0000-\u001f\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069]'
+    Name:
+      type: string
+      minLength: 1
+      maxLength: 200
+      not:
+        pattern: '[\u0000-\u001f\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069]'
+    NullableTimestamp:
+      oneOf:
+        - $ref: './schemas/item.schema.json#/$defs/Timestamp'
+        - type: 'null'
+    NullableReason:
+      oneOf:
+        - $ref: './schemas/item.schema.json#/$defs/ReasonCode'
+        - type: 'null'
+    Scope:
+      description: '`instance`: a team connector (an administrator creates it); `person`: a personal source of its run-as person.'
+      type: string
+      enum: [instance, person]
+    DataClass:
+      description: '`closed` (default) delivers only where the result is closed; `space` follows the target space and runs its open-check.'
+      type: string
+      enum: [closed, space]
+    Policy:
+      type: object
+      additionalProperties: false
+      properties:
+        participants:
+          description: Who of a meeting is a reader of its record.
+          type: string
+          enum: [owner_only, attended_emails]
+        on_change:
+          type: string
+          enum: [version, new_record]
+        on_delete:
+          type: string
+          enum: [keep, trash]
+        schedule_sec:
+          type: integer
+          minimum: 60
+        daily_items:
+          type: integer
+          minimum: 1
+        daily_mb:
+          type: integer
+          minimum: 1
+    Owner:
+      description: The run-as person of the connector.
+      type: object
+      required: [id, login, name]
+      additionalProperties: false
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        login:
+          $ref: '#/components/schemas/Name'
+        name:
+          $ref: '#/components/schemas/Name'
+    SecretState:
+      type: object
+      required: [name, set, fingerprint, updated_at]
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          maxLength: 32
+        set:
+          type: boolean
+        fingerprint:
+          oneOf:
+            - type: string
+              maxLength: 64
+            - type: 'null'
+        updated_at:
+          $ref: '#/components/schemas/NullableTimestamp'
+    Connector:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - kind
+        - pack
+        - name
+        - scope
+        - owner
+        - target_space_id
+        - data_class
+        - status
+        - config
+        - policy
+        - consent
+        - next_run_at
+        - last_run_at
+        - last_ok_at
+        - last_error
+        - failures
+        - secrets
+        - webhook_path
+        - created_at
+        - updated_at
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        kind:
+          $ref: '#/components/schemas/Kind'
+        pack:
+          description: The pack that provided the preset, or null.
+          oneOf:
+            - $ref: '#/components/schemas/Kind'
+            - type: 'null'
+        name:
+          $ref: '#/components/schemas/Name'
+        scope:
+          $ref: '#/components/schemas/Scope'
+        owner:
+          oneOf:
+            - $ref: '#/components/schemas/Owner'
+            - type: 'null'
+        target_space_id:
+          oneOf:
+            - $ref: '#/components/schemas/Uuid'
+            - type: 'null'
+        data_class:
+          $ref: '#/components/schemas/DataClass'
+        status:
+          type: string
+          enum: [draft, active, paused, error, needs_reconfirm, revoked]
+        config:
+          description: Configuration by the schema of the kind's manifest; never a secret.
+          type: object
+        policy:
+          $ref: '#/components/schemas/Policy'
+        consent:
+          oneOf:
+            - type: object
+              required: [version, at]
+              additionalProperties: false
+              properties:
+                version:
+                  $ref: '#/components/schemas/Name'
+                at:
+                  $ref: './schemas/item.schema.json#/$defs/Timestamp'
+            - type: 'null'
+        next_run_at:
+          $ref: '#/components/schemas/NullableTimestamp'
+        last_run_at:
+          $ref: '#/components/schemas/NullableTimestamp'
+        last_ok_at:
+          $ref: '#/components/schemas/NullableTimestamp'
+        last_error:
+          $ref: '#/components/schemas/NullableReason'
+        failures:
+          type: integer
+          minimum: 0
+        secrets:
+          type: array
+          items:
+            $ref: '#/components/schemas/SecretState'
+        webhook_path:
+          description: The path of the hooks route of this connector, or null for a kind that takes no webhooks.
+          oneOf:
+            - type: string
+              maxLength: 200
+            - type: 'null'
+        created_at:
+          $ref: './schemas/item.schema.json#/$defs/Timestamp'
+        updated_at:
+          $ref: './schemas/item.schema.json#/$defs/Timestamp'
+    ConnectorCreate:
+      type: object
+      required: [kind, name, scope, config]
+      additionalProperties: false
+      properties:
+        kind:
+          $ref: '#/components/schemas/Kind'
+        pack:
+          $ref: '#/components/schemas/Kind'
+        name:
+          $ref: '#/components/schemas/Name'
+        scope:
+          $ref: '#/components/schemas/Scope'
+        config:
+          type: object
+        owner_id:
+          description: Run-as person of a team target; meetings and personal-space targets run as the creator.
+          $ref: '#/components/schemas/Uuid'
+        target_space_id:
+          $ref: '#/components/schemas/Uuid'
+        data_class:
+          $ref: '#/components/schemas/DataClass'
+        policy:
+          $ref: '#/components/schemas/Policy'
+        consent_version:
+          description: The consent text the creator acknowledges (meeting connectors).
+          $ref: '#/components/schemas/Name'
+    ConnectorPatch:
+      type: object
+      minProperties: 1
+      additionalProperties: false
+      properties:
+        name:
+          $ref: '#/components/schemas/Name'
+        config:
+          type: object
+        policy:
+          $ref: '#/components/schemas/Policy'
+        target_space_id:
+          $ref: '#/components/schemas/Uuid'
+        data_class:
+          $ref: '#/components/schemas/DataClass'
+        owner_id:
+          $ref: '#/components/schemas/Uuid'
+    ConnectorCreated:
+      description: The new connector; `webhook_secret` only for a kind that takes webhooks — shown once, never again.
+      type: object
+      required: [connector]
+      additionalProperties: false
+      properties:
+        connector:
+          $ref: '#/components/schemas/Connector'
+        webhook_secret:
+          type: string
+          minLength: 24
+          maxLength: 256
+    SecretSet:
+      type: object
+      required: [value]
+      additionalProperties: false
+      properties:
+        value:
+          type: string
+          minLength: 1
+          maxLength: 8192
+    SecretSaved:
+      type: object
+      required: [name, fingerprint, updated_at]
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          maxLength: 32
+        fingerprint:
+          type: string
+          maxLength: 64
+        updated_at:
+          $ref: './schemas/item.schema.json#/$defs/Timestamp'
+    WebhookSecretRotated:
+      description: The new secret, shown once; the previous one still verifies until `previous_valid_until`.
+      type: object
+      required: [webhook_secret, previous_valid_until]
+      additionalProperties: false
+      properties:
+        webhook_secret:
+          type: string
+          minLength: 24
+          maxLength: 256
+        previous_valid_until:
+          $ref: './schemas/item.schema.json#/$defs/Timestamp'
+    RunQueued:
+      type: object
+      required: [run_id]
+      additionalProperties: false
+      properties:
+        run_id:
+          $ref: '#/components/schemas/Uuid'
+    Run:
+      type: object
+      required: [id, kind, status, requested_by, created_at, started_at, finished_at, seen, staged, error]
+      additionalProperties: false
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        kind:
+          type: string
+          enum: [test, sync, backfill, webhook]
+        status:
+          type: string
+          enum: [queued, running, ok, failed]
+        requested_by:
+          description: Login of the administrator who asked for the run, or null for scheduled and webhook runs.
+          oneOf:
+            - $ref: '#/components/schemas/Name'
+            - type: 'null'
+        created_at:
+          $ref: './schemas/item.schema.json#/$defs/Timestamp'
+        started_at:
+          $ref: '#/components/schemas/NullableTimestamp'
+        finished_at:
+          $ref: '#/components/schemas/NullableTimestamp'
+        seen:
+          type: integer
+          minimum: 0
+        staged:
+          type: integer
+          minimum: 0
+        error:
+          $ref: '#/components/schemas/NullableReason'
+    ConnectorList:
+      type: object
+      required: [connectors]
+      additionalProperties: false
+      properties:
+        connectors:
+          type: array
+          items:
+            $ref: '#/components/schemas/Connector'
+        next_cursor:
+          type: string
+          maxLength: 512
+    RunList:
+      type: object
+      required: [runs]
+      additionalProperties: false
+      properties:
+        runs:
+          type: array
+          items:
+            $ref: '#/components/schemas/Run'
+        next_cursor:
+          type: string
+          maxLength: 512
+    ItemList:
+      type: object
+      required: [items]
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            $ref: './schemas/webhook-response.schema.json#/$defs/ItemState'
+        next_cursor:
+          type: string
+          maxLength: 512
+    KindList:
+      type: object
+      required: [kinds, presets]
+      additionalProperties: false
+      properties:
+        kinds:
+          type: array
+          items:
+            $ref: './schemas/manifest.schema.json'
+        presets:
+          type: array
+          items:
+            type: object
+            required: [id, kind, title]
+            additionalProperties: false
+            properties:
+              id:
+                $ref: '#/components/schemas/Kind'
+              kind:
+                $ref: '#/components/schemas/Kind'
+              title:
+                $ref: '#/components/schemas/Name'

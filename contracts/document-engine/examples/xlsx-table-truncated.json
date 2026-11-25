@@ -1,0 +1,79 @@
+{
+  "title": "Truncated table stays ready",
+  "description": "The engine cut a long table at its limit and reports run status partial because of it. A truncated table is not a scan: extraction stays ready. The original is still withheld from agents (`table_truncated`, `office`). A spreadsheet has no page anchors, so pages is null.",
+  "content_locale": "en",
+  "rule_status": "current",
+  "conversion": {
+    "status": "partial",
+    "markdown": "## Sales\n\n| Region | Amount |\n|---|---|\n| North | 120 |\n| South | 95 |\n",
+    "pages": null,
+    "units": [
+      {
+        "kind": "sheet",
+        "number": 1,
+        "method": "ooxml",
+        "chars": 27,
+        "images": 0,
+        "hidden": false,
+        "warnings": [
+          "table_truncated"
+        ]
+      }
+    ],
+    "warnings": [],
+    "engine": {
+      "id": "builtin",
+      "release": "0.1.0"
+    }
+  },
+  "input": {
+    "status": "partial",
+    "error": null,
+    "text": "## Sales\n\n| Region | Amount |\n|---|---|\n| North | 120 |\n| South | 95 |\n",
+    "units": [
+      {
+        "kind": "sheet",
+        "number": 1,
+        "method": "ooxml",
+        "chars": 27,
+        "images": 0,
+        "hidden": false,
+        "warnings": [
+          "table_truncated"
+        ]
+      }
+    ],
+    "warnings": [],
+    "images_found": 0,
+    "engine_format": "xlsx",
+    "detected_format": "xlsx",
+    "source_flags": [],
+    "engine": {
+      "id": "builtin",
+      "release": "0.1.0"
+    }
+  },
+  "expected": {
+    "status": "partial",
+    "text": "## Sales\n\n| Region | Amount |\n|---|---|\n| North | 120 |\n| South | 95 |\n",
+    "pages": null,
+    "extraction": "ready",
+    "agent_file": false,
+    "agent_file_why": [
+      "table_truncated",
+      "office"
+    ],
+    "warning_codes": [
+      "table_truncated"
+    ],
+    "ocr_units": 0,
+    "ocr_rerun": false,
+    "error_code": null,
+    "error_class": null,
+    "engine_format": "xlsx",
+    "engine": {
+      "id": "builtin",
+      "release": "0.1.0"
+    }
+  }
+}

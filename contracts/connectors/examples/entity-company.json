@@ -1,0 +1,12 @@
+{
+  "type": "entity",
+  "external_id": "company:42",
+  "kind": "company",
+  "id": "42",
+  "name": "Example Industries Ltd",
+  "aliases": [
+    "Example Industries",
+    "EXI"
+  ],
+  "url": "https://crm.example.com/companies/42"
+}

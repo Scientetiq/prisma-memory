@@ -1,0 +1,12 @@
+{
+  "format": "prisma-memory-export/1",
+  "version": "1.4.0",
+  "instance": "core",
+  "created_at": "2026-11-12T08:00:00.000Z",
+  "finished_at": "2026-11-12T08:00:04.512Z",
+  "by": "anna@example.org",
+  "scope": { "kind": "space", "spaces": ["team-sales"], "classes": ["open", "closed"], "originals": true },
+  "counts": { "spaces": 1, "records": 3, "originals": 1, "original_bytes": 18734 },
+  "skipped": { "no_access": 1, "original_missing": 0, "gone": 0 },
+  "complete": true
+}

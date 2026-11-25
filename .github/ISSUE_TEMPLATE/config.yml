@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/Scientetiq/prisma-memory/security/policy
+    about: "Report it privately, as the security policy says, and never in a public issue."
+  - name: Ask a question
+    url: https://github.com/Scientetiq/prisma-memory/discussions
+    about: "Questions about installing and using Prisma Memory go to the discussions."

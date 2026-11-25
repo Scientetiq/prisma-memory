@@ -1,0 +1,18 @@
+{
+  "containers": [
+    {
+      "kind": "page",
+      "number": 1,
+      "method": "ocr_unavailable",
+      "warnings": [
+        "ocr_not_configured"
+      ],
+      "blocks": [
+        {
+          "type": "figure",
+          "caption": null
+        }
+      ]
+    }
+  ]
+}

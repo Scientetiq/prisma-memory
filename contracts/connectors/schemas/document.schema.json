@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://memory.internal/connectors/schemas/document.schema.json",
+  "title": "document",
+  "description": "A file or a text that becomes a document record. Exactly one of `text` and `content_base64`.",
+  "type": "object",
+  "required": [
+    "type",
+    "external_id",
+    "filename"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "type": {
+      "const": "document"
+    },
+    "external_id": {
+      "$ref": "item.schema.json#/$defs/ExternalId"
+    },
+    "external_version": {
+      "$ref": "item.schema.json#/$defs/ExternalVersion"
+    },
+    "occurred_at": {
+      "$ref": "item.schema.json#/$defs/Timestamp"
+    },
+    "title": {
+      "$ref": "item.schema.json#/$defs/Title"
+    },
+    "url": {
+      "$ref": "item.schema.json#/$defs/Url"
+    },
+    "entities": {
+      "$ref": "item.schema.json#/$defs/Entities"
+    },
+    "filename": {
+      "description": "File name without a directory; `/` and `\\` are refused.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255,
+      "pattern": "^[^/\\\\]+$",
+      "not": {
+        "pattern": "[\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029\\u202a-\\u202e\\u2066-\\u2069]"
+      }
+    },
+    "mime": {
+      "type": "string",
+      "maxLength": 255,
+      "pattern": "^[a-z0-9][a-z0-9!#$&^_.+\\-]*/[a-z0-9][a-z0-9!#$&^_.+\\-]*$",
+      "not": {
+        "pattern": "[\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029\\u202a-\\u202e\\u2066-\\u2069]"
+      }
+    },
+    "path": {
+      "description": "Path of the file in the source, for people (a folder, a drive path).",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "not": {
+        "pattern": "[\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029\\u202a-\\u202e\\u2066-\\u2069]"
+      }
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000000
+    },
+    "content_base64": {
+      "description": "The file bytes, standard base64. At most 32 MiB decoded here; the receiver applies its own lower limits and decodes strictly.",
+      "type": "string",
+      "minLength": 4,
+      "maxLength": 44739244,
+      "contentEncoding": "base64"
+    }
+  },
+  "oneOf": [
+    {
+      "type": "object",
+      "required": [
+        "text"
+      ]
+    },
+    {
+      "type": "object",
+      "required": [
+        "content_base64"
+      ]
+    }
+  ]
+}

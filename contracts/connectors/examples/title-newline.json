@@ -1,0 +1,16 @@
+{
+  "type": "note",
+  "external_id": "decision-12",
+  "kind": "decision",
+  "title": "Vendor\nchoice",
+  "occurred_at": "2026-10-05T08:00:00Z",
+  "url": "https://tracker.example.com/issues/12",
+  "entities": [
+    {
+      "system": "tracker",
+      "kind": "task",
+      "id": "PRJ-12"
+    }
+  ],
+  "text": "We buy the standard support plan; the premium plan is not needed this year."
+}

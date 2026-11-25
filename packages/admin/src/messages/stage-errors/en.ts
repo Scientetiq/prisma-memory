@@ -1,0 +1,50 @@
+import type { StageErrorInfo } from "../../lib/stage-errors";
+import { CONVERSION_ERROR_TITLES } from "../labels/en";
+const RETRY = "Click “Retry” on the record or retry all failed stages.";
+const DEV = "If retrying does not help, pass the code to the developers.";
+export const STAGE_ERROR_INFO: Record<string, StageErrorInfo> = {
+    converter_rejected: { title: CONVERSION_ERROR_TITLES.converter_rejected!, advice: "Retrying will fail again. Ask the author to save the file in another format and upload it again." },
+    converter_too_large: { title: CONVERSION_ERROR_TITLES.converter_too_large!, advice: "Retrying will fail again. Split the file or raise the size limit in the converter settings." },
+    converter_unsupported: { title: CONVERSION_ERROR_TITLES.converter_unsupported!, advice: "Retrying will fail again. Ask the author to save the file as PDF or DOCX." },
+    converter_no_text: { title: "no text found in the file — it appears to be a scan", advice: "Retrying will fail again. Upload a version of the scan with recognised text." },
+    converter_auth: { title: CONVERSION_ERROR_TITLES.converter_auth!, advice: "Check the converter key in “Settings”, then retry." },
+    converter_timeout: { title: CONVERSION_ERROR_TITLES.converter_timeout!, advice: `The converter was busy or the file is large. ${RETRY}` },
+    converter_network: { title: "the converter is unreachable over the network", advice: `Check that the converter is running, then retry. ${RETRY}` },
+    converter_http: { title: "the converter returned an error", advice: `${RETRY} ${DEV}` },
+    converter_run_gone: { title: CONVERSION_ERROR_TITLES.converter_run_gone!, advice: "Ask the author to upload the file again." },
+    converter_assurance_conflict: { title: "the converter did not provide an export for this run", advice: `${RETRY} If the error persists, pass the code to the developers: the fast path did not return text either.` },
+    converter_wait: { title: "waiting for the document converter", advice: "No action is needed: attempts are not consumed, and processing will resume automatically when the converter accepts the document." },
+    open_check: { title: "the text did not pass the check for a shared space", advice: "Retrying will fail again. Upload the document to a closed team space." },
+    open_check_fallback_failed: { title: "move to closed access after the check failed", advice: "Retry the move under “Data class moves” below — processing will continue automatically with closed access." },
+    model_busy: { title: "the model was busy", advice: "No action is needed: the stage will retry automatically when the model is available." },
+    model_slow: { title: "the model did not respond in time", advice: "No action is needed: the stage will retry automatically." },
+    model_config: { title: "the model is unavailable due to its settings", advice: "Check the model configuration in “Settings”; the stage is waiting and will retry automatically." },
+    llm_too_slow: { title: "the model cannot respond to this record in time", advice: "Retry at night when the model is available; if that fails, contact the developers." },
+    llm_timeout: { title: "the model did not respond in time", advice: RETRY },
+    schema_error: { title: "the model response did not match the required format", advice: `${RETRY} ${DEV}` },
+    platform_http: { title: "the model gateway returned an error", advice: `Check the “Model” section at the top of the page. ${RETRY}` },
+    platform_gate: { title: "the model gateway refused the request", advice: "Check the “Model” section at the top of the page and the gateway key in “Settings”." },
+    platform_busy: { title: "the model was busy", advice: RETRY },
+    platform_bad_response: { title: "the model returned an unrecognised response", advice: `${RETRY} ${DEV}` },
+    platform_aborted: { title: "the model request was interrupted", advice: RETRY },
+    aborted: { title: "interrupted by a restart", advice: "No action is needed: the stage will resume automatically." },
+    stuck_running: { title: "the stage did not finish in time", advice: RETRY },
+    worker_restart: { title: "the stage was interrupted by a worker restart", advice: RETRY },
+    handoff: { title: "the record moved between open and closed access during processing", advice: "No action is needed: the stage will continue at its new location." },
+    index_held_long: { title: "search preparation waits long for a move between open and closed access", advice: "Check the record's move on the “Data class moves” tab: it does not finish. The stage retries itself at most every 30 min." },
+    index_source_check_failed: { title: "record check before the model call failed (database failure)", advice: `Check the memory databases. ${RETRY} ${DEV}` },
+    index_store_locked: { title: "search preparation did not save its result: at the last attempt another operation held the record", advice: `The stage will not retry itself. Check whether a long operation on the memory database is running (search index rebuild, record move) and wait until it ends. ${RETRY} ${DEV}` },
+    index_wait: { title: "search preparation waits: record or search index busy with another operation", advice: `No action is needed: the stage will retry itself in a minute. An attempt is spent only when the model has run and its result could not be saved; when attempts run out, the wait becomes an error — then see its advice. If a stage with this reason is already marked failed, it will not retry itself. ${RETRY}` },
+    error: { title: "processing error", advice: `${RETRY} ${DEV}` },
+    superseded: { title: "a new record version is being processed", advice: "No action is needed: the new version is being processed." },
+    open_check_fallback: { title: "the document is moving to closed access", advice: "No action is needed: the move runs automatically; see the “Data class moves” tab." },
+    version_wait: { title: "waits for the current version of the document", advice: "Nothing to do: attempts are not spent; the new version is finished as soon as the document is free." },
+    version_refused: { title: "the new version was not added to the document", advice: "Retrying gives the same result. Open the record: it says why, and what to do with the file." },
+};
+
+export const text = {
+  retry: RETRY,
+  fallback: `${RETRY} ${DEV}`,
+  missing: "reason not recorded",
+  failed: "failed",
+};

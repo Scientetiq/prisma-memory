@@ -1,0 +1,215 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://memory.internal/connectors/schemas/manifest.schema.json",
+  "title": "manifest",
+  "description": "Manifest of a connector kind: what it produces, how it is reached, what it needs.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "sdk",
+    "version",
+    "title",
+    "description",
+    "verified",
+    "scopes",
+    "produces",
+    "capabilities",
+    "config",
+    "secrets",
+    "egress",
+    "limits"
+  ],
+  "properties": {
+    "kind": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{1,31}$",
+      "not": {
+        "pattern": "[\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029\\u202a-\\u202e\\u2066-\\u2069]"
+      }
+    },
+    "sdk": {
+      "const": 1
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]{0,5})\\.(0|[1-9][0-9]{0,5})\\.(0|[1-9][0-9]{0,5})$",
+      "not": {
+        "pattern": "[\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029\\u202a-\\u202e\\u2066-\\u2069]"
+      }
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100,
+      "not": {
+        "pattern": "[\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029\\u202a-\\u202e\\u2066-\\u2069]"
+      }
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500,
+      "not": {
+        "pattern": "[\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029\\u202a-\\u202e\\u2066-\\u2069]"
+      }
+    },
+    "verified": {
+      "description": "`mock_only`: not verified against a live account (shown as such).",
+      "type": "string",
+      "enum": [
+        "live",
+        "mock_only"
+      ]
+    },
+    "scopes": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": [
+          "instance",
+          "person"
+        ]
+      }
+    },
+    "produces": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "item.schema.json#/$defs/ItemType"
+      }
+    },
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "pull": {
+          "const": true
+        },
+        "webhook": {
+          "type": "string",
+          "enum": [
+            "standard_webhooks",
+            "hmac_sha256_hex_body"
+          ]
+        },
+        "entity_lookup": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "item.schema.json#/$defs/EntityKind"
+          }
+        },
+        "actions": false
+      }
+    },
+    "config": {
+      "description": "JSON Schema (draft 2020-12) of the connector configuration.",
+      "type": "object"
+    },
+    "secrets": {
+      "type": "array",
+      "maxItems": 10,
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "title",
+          "required"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,31}$",
+            "not": {
+              "pattern": "[\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029\\u202a-\\u202e\\u2066-\\u2069]"
+            }
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "not": {
+              "pattern": "[\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029\\u202a-\\u202e\\u2066-\\u2069]"
+            }
+          },
+          "required": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "egress": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "hosts"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "hosts": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 20,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "maxLength": 253,
+                "pattern": "^[a-z0-9]([a-z0-9.\\-]{0,251}[a-z0-9])?$",
+                "not": {
+                  "pattern": "[\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029\\u202a-\\u202e\\u2066-\\u2069]"
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "hostFromConfig"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "hostFromConfig": {
+              "description": "Name of the config field whose URL host is the only allowed host.",
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]{0,63}$",
+              "not": {
+                "pattern": "[\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029\\u202a-\\u202e\\u2066-\\u2069]"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "limits": {
+      "type": "object",
+      "required": [
+        "minIntervalSec",
+        "maxItemsPerRun",
+        "maxBytesPerItem"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "minIntervalSec": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxItemsPerRun": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxBytesPerItem": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    }
+  }
+}

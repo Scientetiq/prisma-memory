@@ -1,0 +1,48 @@
+{
+  "format": "memory-external-notices/1",
+  "$comment": [
+    "Texts of the workspace banners and of the “External access” e-mails. The source for packages/shared/src/external-notices.ts: the code takes the text from here and inserts the row with the function external_notice; the function itself knows no texts.",
+    "There are no links at all: no addresses and no name of the sign-in page — the person is guided with the words “open the memory workspace”. An e-mail with a link is the best template for phishing.",
+    "The substitutions are only {program} (the name of the program from the anchors), {time} (YYYY-MM-DD HH:MM UTC) and {network} (the /24 network for IPv4, /56 for IPv6). There is nothing else in the text: no e-mail, no full name, no codes.",
+    "banner — a banner in the workspace (null — no banner); mail — an e-mail (null — no e-mail). A new kind goes into this file and into enums.json#/external_notices.kind in the same commit."
+  ],
+  "substitutions": ["program", "time", "network"],
+  "notices": {
+    "optin_enabled": {
+      "banner": { "title": "External access enabled", "text": "You turned on access to the memory from the internet ({time}). You can connect programs from your own computer outside the office. If this wasn’t you, turn off access from outside in the memory workspace and tell support." },
+      "mail": { "subject": "Prisma Memory: access from outside turned on", "body": "You turned on access to the memory from the internet ({time}).\n\nIf this wasn’t you, open the memory workspace from the company network, turn off “External access” and tell support." }
+    },
+    "optin_disabled": {
+      "banner": { "title": "External access disabled", "text": "Access to the memory from the internet is turned off ({time}). Connections from outside are revoked. Only you can turn it on again, from the company network." },
+      "mail": { "subject": "Prisma Memory: access from outside turned off", "body": "Access to the memory from the internet is turned off ({time}). All program connections from outside are revoked.\n\nYou can turn it on again in the memory workspace from the company network." }
+    },
+    "connection_new": {
+      "banner": { "title": "New connection from outside", "text": "The program {program} connected to the memory from outside ({time}, network {network}). Wasn’t this you? Disconnect it in the memory workspace and tell support." },
+      "mail": { "subject": "Prisma Memory: new connection from outside", "body": "The program {program} connected to the memory from the internet ({time}, network {network}).\n\nIf this wasn’t you, open the memory workspace, disconnect the connection and tell support." }
+    },
+    "connection_revoked_reuse": {
+      "banner": { "title": "Connection disconnected", "text": "The connection of the program {program} was disconnected ({time}): its refresh key was used again — this happens if it was copied. Connect the program again." },
+      "mail": null
+    },
+    "refresh_reuse_rejected": {
+      "banner": { "title": "Connection key reused", "text": "A repeated refresh key arrived for the connection of the program {program} ({time}, network {network}); the request was rejected. If you don’t recognize this, disconnect the connection and tell support." },
+      "mail": { "subject": "Prisma Memory: connection key reused", "body": "A repeated refresh key arrived for the connection of the program {program} ({time}, network {network}). The request was rejected.\n\nIf you don’t recognize this, open the memory workspace, disconnect the connection and tell support." }
+    },
+    "budget_exhausted": {
+      "banner": { "title": "Many wrong passwords from outside", "text": "In the past day there were many failed attempts to sign in from outside with your account (the last — {time}). Sign-in from outside is paused for it for now. If this wasn’t you, tell support." },
+      "mail": { "subject": "Prisma Memory: sign-in attempts from outside", "body": "In the past day there were many failed attempts to sign in to the memory from the internet with your account (the last — {time}). Sign-in from outside is paused for it for now.\n\nIf this wasn’t you, tell support." }
+    },
+    "idle_reminder": {
+      "banner": null,
+      "mail": { "subject": "Prisma Memory: access from outside will turn off soon", "body": "You haven’t signed in to the memory from the internet for a long time. In 7 days ({time}) access from outside will turn off by itself.\n\nIf you need it, sign in from outside before then. If not, there is nothing to do." }
+    },
+    "idle_off": {
+      "banner": { "title": "Access from outside turned off after inactivity", "text": "You haven’t signed in to the memory from the internet for a long time, and access from outside turned off by itself ({time}). You can turn it on again in the memory workspace from the company network." },
+      "mail": { "subject": "Prisma Memory: access from outside turned off", "body": "You haven’t signed in to the memory from the internet for a long time, and access from outside turned off by itself ({time}).\n\nYou can turn it on again in the memory workspace from the company network." }
+    },
+    "ad_revoked": {
+      "banner": { "title": "External access disabled", "text": "Access to the memory from the internet was turned off based on the company directory ({time}): the account is disabled, has expired or has left the allowed group. For questions, contact support." },
+      "mail": { "subject": "Prisma Memory: access from outside turned off", "body": "Access to the memory from the internet was turned off based on the company directory ({time}).\n\nFor questions, contact support." }
+    }
+  }
+}

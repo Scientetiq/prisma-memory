@@ -1,0 +1,2564 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:prisma-memory:meetings:ingest-v1-base",
+  "title": "Meeting wire responses, frozen base revision",
+  "x-baseline": {
+    "revision_header": false,
+    "profile": "English, UTC; consent v0; LDAP disabled; no worker; in-process gateway"
+  },
+  "$defs": {
+    "IngestResult": {
+      "type": "object",
+      "required": [
+        "id",
+        "path",
+        "type",
+        "space",
+        "class",
+        "version",
+        "already_known",
+        "stages"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "path": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "document",
+            "transcript"
+          ]
+        },
+        "space": {
+          "type": "string"
+        },
+        "class": {
+          "type": "string",
+          "enum": [
+            "open",
+            "closed"
+          ]
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "supersedes_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "uuid"
+        },
+        "already_known": {
+          "type": "boolean"
+        },
+        "placed": {
+          "type": "boolean"
+        },
+        "note": {
+          "type": "string"
+        },
+        "stages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Stage"
+          }
+        },
+        "queue": {
+          "$ref": "#/$defs/Queue"
+        },
+        "open_check": {
+          "$ref": "#/$defs/OpenCheckOutcome"
+        },
+        "extended_write": {
+          "const": true
+        },
+        "participants": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MeetingParticipant"
+          }
+        },
+        "consent": {
+          "$ref": "#/$defs/MeetingConsent"
+        },
+        "participants_unknown": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "participants_changed": {
+          "type": "boolean"
+        },
+        "participants_left": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "workplace_url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "format": {
+          "type": "string",
+          "enum": [
+            "marked",
+            "timeline",
+            "srt",
+            "vtt",
+            "json",
+            "plain",
+            "segments"
+          ]
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "no_time_marks",
+              "no_speakers",
+              "directory_unavailable",
+              "directory_lookups_capped",
+              "participants_not_added",
+              "participants_left"
+            ]
+          }
+        }
+      }
+    },
+    "Stage": {
+      "type": "object",
+      "required": [
+        "stage",
+        "status",
+        "version",
+        "attempts",
+        "terminal",
+        "last_error",
+        "updated_at"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "stage": {
+          "type": "string",
+          "enum": [
+            "indexed",
+            "converted",
+            "summary",
+            "events",
+            "entities",
+            "described",
+            "moved"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "running",
+            "done",
+            "failed",
+            "skipped"
+          ]
+        },
+        "version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "attempts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "terminal": {
+          "type": "boolean"
+        },
+        "last_error": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "retry_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "busy_retries": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "slow_retries": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "first_busy_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        }
+      }
+    },
+    "Queue": {
+      "type": "object",
+      "required": [
+        "lane"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "lane": {
+          "type": "string",
+          "enum": [
+            "now",
+            "night"
+          ]
+        },
+        "position": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "eta_sec": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "model_busy",
+            "daytime_cap",
+            "paused",
+            "too_slow",
+            "night_cap"
+          ]
+        },
+        "retry_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        }
+      }
+    },
+    "OpenCheckOutcome": {
+      "type": "object",
+      "required": [
+        "result"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "result": {
+          "type": "string",
+          "enum": [
+            "passed",
+            "closed",
+            "pending"
+          ]
+        },
+        "via": {
+          "type": "string",
+          "enum": [
+            "remember",
+            "upload",
+            "convert"
+          ]
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "kinds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "secret",
+              "pii",
+              "money",
+              "contract",
+              "nda",
+              "custom",
+              "never_open",
+              "unchecked"
+            ]
+          }
+        },
+        "findings": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "required": [
+              "rule",
+              "kind",
+              "reason",
+              "field"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "rule": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "field": {
+                "type": "string"
+              },
+              "at": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        },
+        "openable": {
+          "type": "boolean"
+        },
+        "by_word": {
+          "type": "boolean"
+        },
+        "text_checked": {
+          "type": "boolean"
+        },
+        "unchecked": {
+          "type": "string",
+          "enum": [
+            "empty_text",
+            "partial_text"
+          ]
+        }
+      }
+    },
+    "MeetingParticipant": {
+      "type": "object",
+      "required": [
+        "input",
+        "status"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "input": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "resolved",
+            "in_directory",
+            "not_found"
+          ]
+        },
+        "login": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "department": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "matched_by": {
+          "type": "string",
+          "enum": [
+            "login",
+            "identity",
+            "name",
+            "directory"
+          ]
+        }
+      }
+    },
+    "MeetingConsent": {
+      "type": "object",
+      "required": [
+        "version",
+        "accepted_at",
+        "by",
+        "channel"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "type": "string"
+        },
+        "accepted_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "by": {
+          "type": "string"
+        },
+        "channel": {
+          "type": "string",
+          "enum": [
+            "service",
+            "agent",
+            "script"
+          ]
+        },
+        "client": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "Error": {
+      "type": "object",
+      "required": [
+        "code",
+        "message"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "type": "string",
+          "enum": [
+            "not_found",
+            "invalid_argument",
+            "too_large",
+            "rate_limited",
+            "never_open",
+            "open_check",
+            "class_denied",
+            "in_progress",
+            "unauthorized",
+            "forbidden",
+            "not_empty",
+            "conflict",
+            "internal",
+            "ldap_disabled",
+            "ldap_not_configured",
+            "ldap_dns_failed",
+            "ldap_unreachable",
+            "ldap_tls_failed",
+            "ldap_service_bind_failed",
+            "ldap_base_dn_invalid",
+            "ldap_search_failed",
+            "ldap_timeout",
+            "ldap_attribute_missing",
+            "login_policy_changed",
+            "first_run_code_invalid",
+            "fresh_login_required",
+            "first_confirm_required",
+            "factor_required",
+            "external_not_allowed",
+            "external_unavailable",
+            "external_login_ldap_tls",
+            "factor_fresh_login_required",
+            "factor_first_confirm_required",
+            "proof_required",
+            "bad_code",
+            "code_expired",
+            "factor_locked",
+            "factor_unavailable",
+            "already_enrolled",
+            "reset_approval_invalid",
+            "factor_self_reset",
+            "session_expired",
+            "system_key_disabled",
+            "system_key_removed",
+            "admin_login_denied",
+            "admin_network_denied",
+            "admin_identity_unconfirmed",
+            "admin_directory_unavailable",
+            "admin_webauthn_missing",
+            "webauthn_failed",
+            "stepup_required",
+            "setting_anchored",
+            "setting_not_whitelisted",
+            "policy_mismatch",
+            "readiness_failed",
+            "approval_not_found",
+            "approval_self",
+            "approval_role",
+            "approval_state",
+            "approval_expired",
+            "approval_mismatch",
+            "breakglass_only",
+            "role_forbidden",
+            "not_implemented",
+            "human_session_required",
+            "external_gate_closed",
+            "external_gate_would_break",
+            "external_profile_unconfirmed",
+            "security_mode_same",
+            "downgrade_pending_exists",
+            "downgrade_not_ready",
+            "attestation_stale",
+            "floor_advanced",
+            "retire_missing",
+            "retire_stale",
+            "retire_used",
+            "retire_not_needed",
+            "retire_unverified",
+            "anchors_unverified",
+            "oauth_tx_gone",
+            "oauth_tx_decided",
+            "oauth_fresh_login",
+            "oauth_csrf",
+            "oauth_person_inactive",
+            "oauth_session_ended"
+          ]
+        },
+        "message": {
+          "type": "string"
+        },
+        "hint": {
+          "type": "string"
+        },
+        "retry_after": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reason": {
+          "type": "string"
+        },
+        "details": {
+          "type": "object"
+        }
+      }
+    },
+    "ConsentText": {
+      "type": "object",
+      "required": [
+        "version",
+        "text"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        }
+      }
+    },
+    "ParticipantsCheck": {
+      "type": "object",
+      "required": [
+        "owner",
+        "space",
+        "class",
+        "participants",
+        "ambiguous"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "owner": {
+          "type": "object",
+          "required": [
+            "login",
+            "display_name"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "login": {
+              "type": "string"
+            },
+            "display_name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        "space": {
+          "type": "string"
+        },
+        "class": {
+          "type": "string",
+          "enum": [
+            "closed"
+          ]
+        },
+        "participants": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MeetingParticipant"
+          }
+        },
+        "ambiguous": {
+          "$ref": "#/$defs/ParticipantsAmbiguous"
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "directory_unavailable",
+              "directory_lookups_capped"
+            ]
+          }
+        }
+      }
+    },
+    "ParticipantsAmbiguous": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "input",
+          "candidates",
+          "truncated"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "input": {
+            "type": "string"
+          },
+          "candidates": {
+            "type": "array",
+            "maxItems": 5,
+            "items": {
+              "type": "object",
+              "required": [
+                "display_name",
+                "department",
+                "login"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "display_name": {
+                  "type": "string"
+                },
+                "department": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "login": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "UploadTicket": {
+      "type": "object",
+      "required": [
+        "meeting_id",
+        "upload",
+        "command",
+        "existing",
+        "participants",
+        "consent"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "meeting_id": {
+          "type": "string"
+        },
+        "upload": {
+          "type": "object",
+          "required": [
+            "url",
+            "method",
+            "expires_at",
+            "max_bytes"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "url": {
+              "type": "string",
+              "format": "uri"
+            },
+            "method": {
+              "type": "string",
+              "enum": [
+                "PUT"
+              ]
+            },
+            "expires_at": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "max_bytes": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "command": {
+          "type": "string"
+        },
+        "existing": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "required": [
+            "id",
+            "path",
+            "version"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "path": {
+              "type": "string"
+            },
+            "version": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "participants": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MeetingParticipant"
+          }
+        },
+        "consent": {
+          "type": "object",
+          "required": [
+            "version"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "version": {
+              "type": "string"
+            }
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "RecordStatus": {
+      "type": "object",
+      "required": [
+        "id",
+        "path",
+        "type",
+        "class",
+        "stages",
+        "queue",
+        "derived",
+        "access"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "path": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "document",
+            "transcript",
+            "event",
+            "summary",
+            "profile",
+            "note"
+          ]
+        },
+        "class": {
+          "type": "string",
+          "enum": [
+            "open",
+            "closed"
+          ]
+        },
+        "stages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Stage"
+          }
+        },
+        "queue": {
+          "$ref": "#/$defs/Queue"
+        },
+        "derived": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "type",
+              "event_kind",
+              "title"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "type": {
+                "type": "string"
+              },
+              "event_kind": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "decision",
+                  "action",
+                  "question_risk",
+                  "fact",
+                  null
+                ]
+              },
+              "title": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "access": {
+          "type": "object",
+          "required": [
+            "restricted_by_source"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "restricted_by_source": {
+              "type": "boolean"
+            }
+          }
+        },
+        "conversion": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "required": [
+            "status"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "done",
+                "failed"
+              ]
+            },
+            "error_kind": {
+              "type": "string"
+            },
+            "profile": {
+              "type": "string"
+            },
+            "export_profile": {
+              "type": "string"
+            },
+            "verdict": {
+              "type": "string"
+            },
+            "extraction_state": {
+              "type": "string",
+              "enum": [
+                "ready",
+                "partial",
+                "unavailable"
+              ]
+            },
+            "certified": {
+              "type": "boolean"
+            },
+            "run_id": {
+              "type": "string"
+            },
+            "document_id": {
+              "type": "string"
+            },
+            "export_id": {
+              "type": "string"
+            },
+            "converted_at": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "phase": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "enum": [
+                "queued",
+                "uploading",
+                "at_converter",
+                "retry_later",
+                null
+              ]
+            },
+            "since": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "date-time"
+            },
+            "position": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "agent_file": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "agent_file_why": {
+              "type": "array",
+              "maxItems": 10,
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "hidden": {
+          "type": "boolean"
+        },
+        "space": {
+          "type": "string"
+        },
+        "owner": {
+          "type": "string",
+          "format": "email"
+        },
+        "created_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "open_check": {
+          "$ref": "#/$defs/OpenCheckOutcome"
+        },
+        "open_check_accepted": {
+          "$ref": "#/$defs/OpenCheckAccepted"
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "occurred_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "OpenCheckAccepted": {
+      "type": "object",
+      "required": [
+        "at",
+        "confirmation",
+        "rules",
+        "reasons"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "at": {
+          "type": "string"
+        },
+        "confirmation": {
+          "type": "string",
+          "enum": [
+            "agent_relayed",
+            "human_workplace"
+          ]
+        },
+        "rules": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "DirectorySearch": {
+      "type": "object",
+      "required": [
+        "source",
+        "items",
+        "truncated"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "type": "string",
+          "enum": [
+            "ldap",
+            "memory"
+          ]
+        },
+        "items": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "$ref": "#/$defs/DirectoryHit"
+          }
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "ldap_error": {
+          "type": "string"
+        }
+      }
+    },
+    "DirectoryHit": {
+      "type": "object",
+      "required": [
+        "display_name",
+        "login",
+        "department",
+        "title",
+        "in_memory"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "display_name": {
+          "type": "string"
+        },
+        "login": {
+          "type": "string"
+        },
+        "department": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "in_memory": {
+          "type": "boolean"
+        }
+      }
+    },
+    "MeetingToolResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "meeting_ref",
+        "participants",
+        "consent"
+      ],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "upload",
+            "accepted"
+          ]
+        },
+        "meeting_ref": {
+          "type": "string"
+        },
+        "upload": {
+          "type": "object",
+          "required": [
+            "url",
+            "method",
+            "expires_at",
+            "max_bytes"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "url": {
+              "type": "string",
+              "format": "uri"
+            },
+            "method": {
+              "type": "string",
+              "enum": [
+                "PUT"
+              ]
+            },
+            "expires_at": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "max_bytes": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "command": {
+          "type": "string"
+        },
+        "existing": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "required": [
+            "id",
+            "path",
+            "version"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "path": {
+              "type": "string"
+            },
+            "version": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "participants": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "input",
+              "status"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "input": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "resolved",
+                  "in_directory",
+                  "not_found"
+                ]
+              },
+              "login": {
+                "type": "string"
+              },
+              "display_name": {
+                "type": "string"
+              },
+              "department": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "matched_by": {
+                "type": "string",
+                "enum": [
+                  "login",
+                  "identity",
+                  "name",
+                  "directory"
+                ]
+              }
+            }
+          }
+        },
+        "participants_unknown": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "consent": {
+          "type": "object",
+          "required": [
+            "version"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "version": {
+              "type": "string"
+            },
+            "accepted_at": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "by": {
+              "type": "string"
+            },
+            "channel": {
+              "type": "string",
+              "enum": [
+                "service",
+                "agent",
+                "script"
+              ]
+            },
+            "client": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "path": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "already_known": {
+          "type": "boolean"
+        },
+        "supersedes_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "stages": {
+          "$ref": "#/$defs/MeetingToolResult/$defs/Stages"
+        },
+        "format": {
+          "type": "string"
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "participants_changed": {
+          "type": "boolean"
+        },
+        "workplace_url": {
+          "type": "string",
+          "format": "uri"
+        }
+      },
+      "$defs": {
+        "Queue": {
+          "type": "object",
+          "properties": {
+            "lane": {
+              "type": "string",
+              "enum": [
+                "now",
+                "night"
+              ]
+            },
+            "position": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "eta_sec": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "reason": {
+              "type": "string",
+              "enum": [
+                "model_busy",
+                "daytime_cap"
+              ]
+            }
+          },
+          "required": [
+            "lane"
+          ],
+          "additionalProperties": false
+        },
+        "Stage": {
+          "type": "object",
+          "properties": {
+            "stage": {
+              "type": "string",
+              "enum": [
+                "converted",
+                "indexed",
+                "summary",
+                "events",
+                "entities",
+                "described",
+                "moved"
+              ]
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "running",
+                "done",
+                "failed",
+                "skipped"
+              ]
+            },
+            "version": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "attempts": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "terminal": {
+              "type": "boolean"
+            },
+            "last_error": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "updated_at": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          "required": [
+            "stage",
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        "Stages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MeetingToolResult/$defs/Stage"
+          }
+        }
+      }
+    },
+    "McpReply": {
+      "type": "object",
+      "required": [
+        "jsonrpc",
+        "id",
+        "result"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "jsonrpc": {
+          "const": "2.0"
+        },
+        "id": {
+          "const": 1
+        },
+        "result": {
+          "type": "object",
+          "required": [
+            "content",
+            "structuredContent",
+            "resultType",
+            "_meta"
+          ],
+          "properties": {
+            "content": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "type",
+                  "text"
+                ],
+                "properties": {
+                  "type": {
+                    "const": "text"
+                  },
+                  "text": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "structuredContent": {
+              "$ref": "#/$defs/MeetingToolResult"
+            },
+            "isError": {
+              "const": false
+            },
+            "resultType": {
+              "const": "complete"
+            },
+            "_meta": {
+              "type": "object",
+              "required": [
+                "io.modelcontextprotocol/serverInfo"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "io.modelcontextprotocol/serverInfo": {
+                  "type": "object",
+                  "required": [
+                    "name",
+                    "title",
+                    "version"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    "IngestAccessResult": {
+      "type": "object",
+      "required": [
+        "source_ref",
+        "records_updated",
+        "readers",
+        "readers_unknown",
+        "promoted_restricted"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "source_ref": {
+          "type": "string"
+        },
+        "records_updated": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "readers": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "readers_unknown": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "readers_left": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "promoted_restricted": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "participants_not_added"
+            ]
+          }
+        }
+      }
+    },
+    "ReconcileResult": {
+      "type": "object",
+      "required": [
+        "date",
+        "accepted",
+        "next_cursor"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "date": {
+          "type": "string",
+          "format": "date"
+        },
+        "accepted": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "meeting_id",
+              "id",
+              "version",
+              "received_at"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "meeting_id": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "version": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "received_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "stages_done": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "stages_total": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        },
+        "next_cursor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    }
+  },
+  "oneOf": [
+    {
+      "type": "object",
+      "required": [
+        "scenario",
+        "status",
+        "body"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scenario": {
+          "const": "access-in-progress"
+        },
+        "status": {
+          "const": 409
+        },
+        "body": {
+          "$ref": "#/$defs/Error"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "scenario",
+        "status",
+        "body"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scenario": {
+          "const": "access-version-in-trash"
+        },
+        "status": {
+          "const": 200
+        },
+        "body": {
+          "$ref": "#/$defs/IngestAccessResult"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "scenario",
+        "status",
+        "body"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scenario": {
+          "const": "concurrent-created"
+        },
+        "status": {
+          "const": 201
+        },
+        "body": {
+          "$ref": "#/$defs/IngestResult"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "scenario",
+        "status",
+        "body"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scenario": {
+          "const": "concurrent-known"
+        },
+        "status": {
+          "const": 200
+        },
+        "body": {
+          "$ref": "#/$defs/IngestResult"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "scenario",
+        "status",
+        "body"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scenario": {
+          "const": "consent-required"
+        },
+        "status": {
+          "const": 400
+        },
+        "body": {
+          "$ref": "#/$defs/Error"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "scenario",
+        "status",
+        "body"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scenario": {
+          "const": "consent"
+        },
+        "status": {
+          "const": 200
+        },
+        "body": {
+          "$ref": "#/$defs/ConsentText"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "scenario",
+        "status",
+        "body"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scenario": {
+          "const": "directory"
+        },
+        "status": {
+          "const": 200
+        },
+        "body": {
+          "$ref": "#/$defs/DirectorySearch"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "scenario",
+        "status",
+        "body"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scenario": {
+          "const": "format-invalid"
+        },
+        "status": {
+          "const": 400
+        },
+        "body": {
+          "$ref": "#/$defs/Error"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "scenario",
+        "status",
+        "body"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scenario": {
+          "const": "format-json"
+        },
+        "status": {
+          "const": 201
+        },
+        "body": {
+          "$ref": "#/$defs/IngestResult"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "scenario",
+        "status",
+        "body"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scenario": {
+          "const": "format-marked"
+        },
+        "status": {
+          "const": 201
+        },
+        "body": {
+          "$ref": "#/$defs/IngestResult"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "scenario",
+        "status",
+        "body"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scenario": {
+          "const": "format-no-speakers"
+        },
+        "status": {
+          "const": 201
+        },
+        "body": {
+          "$ref": "#/$defs/IngestResult"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "scenario",
+        "status",
+        "body"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scenario": {
+          "const": "format-plain"
+        },
+        "status": {
+          "const": 201
+        },
+        "body": {
+          "$ref": "#/$defs/IngestResult"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "scenario",
+        "status",
+        "body"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scenario": {
+          "const": "format-segments"
+        },
+        "status": {
+          "const": 201
+        },
+        "body": {
+          "$ref": "#/$defs/IngestResult"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "scenario",
+        "status",
+        "body"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scenario": {
+          "const": "format-srt"
+        },
+        "status": {
+          "const": 201
+        },
+        "body": {
+          "$ref": "#/$defs/IngestResult"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "scenario",
+        "status",
+        "body"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scenario": {
+          "const": "format-timeline"
+        },
+        "status": {
+          "const": 201
+        },
+        "body": {
+          "$ref": "#/$defs/IngestResult"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "scenario",
+        "status",
+        "body"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scenario": {
+          "const": "format-vtt"
+        },
+        "status": {
+          "const": 201
+        },
+        "body": {
+          "$ref": "#/$defs/IngestResult"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "scenario",
+        "status",
+        "body"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scenario": {
+          "const": "ingest-access"
+        },
+        "status": {
+          "const": 200
+        },
+        "body": {
+          "$ref": "#/$defs/IngestAccessResult"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "scenario",
+        "status",
+        "body"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scenario": {
+          "const": "ingest-created"
+        },
+        "status": {
+          "const": 201
+        },
+        "body": {
+          "$ref": "#/$defs/IngestResult"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "scenario",
+        "status",
+        "body"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scenario": {
+          "const": "ingest-in-progress"
+        },
+        "status": {
+          "const": 409
+        },
+        "body": {
+          "$ref": "#/$defs/Error"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "scenario",
+        "status",
+        "body"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scenario": {
+          "const": "ingest-known"
+        },
+        "status": {
+          "const": 200
+        },
+        "body": {
+          "$ref": "#/$defs/IngestResult"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "scenario",
+        "status",
+        "body"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scenario": {
+          "const": "ingest-list"
+        },
+        "status": {
+          "const": 200
+        },
+        "body": {
+          "$ref": "#/$defs/ReconcileResult"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "scenario",
+        "status",
+        "body"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scenario": {
+          "const": "ingest-participants-changed"
+        },
+        "status": {
+          "const": 200
+        },
+        "body": {
+          "$ref": "#/$defs/IngestResult"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "scenario",
+        "status",
+        "body"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scenario": {
+          "const": "ingest-rate-limited"
+        },
+        "status": {
+          "const": 429
+        },
+        "body": {
+          "$ref": "#/$defs/Error"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "scenario",
+        "status",
+        "body"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scenario": {
+          "const": "ingest-too-large"
+        },
+        "status": {
+          "const": 413
+        },
+        "body": {
+          "$ref": "#/$defs/Error"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "scenario",
+        "status",
+        "body"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scenario": {
+          "const": "ingest-version"
+        },
+        "status": {
+          "const": 200
+        },
+        "body": {
+          "$ref": "#/$defs/IngestResult"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "scenario",
+        "status",
+        "body"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scenario": {
+          "const": "mcp-meeting-upload"
+        },
+        "status": {
+          "const": 200
+        },
+        "body": {
+          "$ref": "#/$defs/McpReply"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "scenario",
+        "status",
+        "body"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scenario": {
+          "const": "participants-ambiguous"
+        },
+        "status": {
+          "const": 400
+        },
+        "body": {
+          "$ref": "#/$defs/Error"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "scenario",
+        "status",
+        "body"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scenario": {
+          "const": "participants-check-personal"
+        },
+        "status": {
+          "const": 403
+        },
+        "body": {
+          "$ref": "#/$defs/Error"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "scenario",
+        "status",
+        "body"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scenario": {
+          "const": "participants-check-service"
+        },
+        "status": {
+          "const": 200
+        },
+        "body": {
+          "$ref": "#/$defs/ParticipantsCheck"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "scenario",
+        "status",
+        "body"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scenario": {
+          "const": "status-document-batch"
+        },
+        "status": {
+          "const": 200
+        },
+        "body": {
+          "type": "object",
+          "required": [
+            "items"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "items": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/RecordStatus"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "scenario",
+        "status",
+        "body"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scenario": {
+          "const": "status-document"
+        },
+        "status": {
+          "const": 200
+        },
+        "body": {
+          "$ref": "#/$defs/RecordStatus"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "scenario",
+        "status",
+        "body"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scenario": {
+          "const": "status-own-hidden-batch"
+        },
+        "status": {
+          "const": 200
+        },
+        "body": {
+          "type": "object",
+          "required": [
+            "items"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "items": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/RecordStatus"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "scenario",
+        "status",
+        "body"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scenario": {
+          "const": "status-own-hidden"
+        },
+        "status": {
+          "const": 200
+        },
+        "body": {
+          "$ref": "#/$defs/RecordStatus"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "scenario",
+        "status",
+        "body"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scenario": {
+          "const": "status-participant-batch"
+        },
+        "status": {
+          "const": 200
+        },
+        "body": {
+          "type": "object",
+          "required": [
+            "items"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "items": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/RecordStatus"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "scenario",
+        "status",
+        "body"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scenario": {
+          "const": "status-participant"
+        },
+        "status": {
+          "const": 200
+        },
+        "body": {
+          "$ref": "#/$defs/RecordStatus"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "scenario",
+        "status",
+        "body"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scenario": {
+          "const": "status-ready-batch"
+        },
+        "status": {
+          "const": 200
+        },
+        "body": {
+          "type": "object",
+          "required": [
+            "items"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "items": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/RecordStatus"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "scenario",
+        "status",
+        "body"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scenario": {
+          "const": "status-ready"
+        },
+        "status": {
+          "const": 200
+        },
+        "body": {
+          "$ref": "#/$defs/RecordStatus"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "scenario",
+        "status",
+        "body"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scenario": {
+          "const": "status-service-batch"
+        },
+        "status": {
+          "const": 200
+        },
+        "body": {
+          "type": "object",
+          "required": [
+            "items"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "items": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/RecordStatus"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "scenario",
+        "status",
+        "body"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scenario": {
+          "const": "status-service"
+        },
+        "status": {
+          "const": 200
+        },
+        "body": {
+          "$ref": "#/$defs/RecordStatus"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "scenario",
+        "status",
+        "body"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scenario": {
+          "const": "upload-accepted"
+        },
+        "status": {
+          "const": 201
+        },
+        "body": {
+          "$ref": "#/$defs/IngestResult"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "scenario",
+        "status",
+        "body"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scenario": {
+          "const": "upload-replay"
+        },
+        "status": {
+          "const": 404
+        },
+        "body": {
+          "$ref": "#/$defs/Error"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "scenario",
+        "status",
+        "body"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scenario": {
+          "const": "upload-ticket"
+        },
+        "status": {
+          "const": 201
+        },
+        "body": {
+          "$ref": "#/$defs/UploadTicket"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "scenario",
+        "status",
+        "body"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scenario": {
+          "const": "version-before-move"
+        },
+        "status": {
+          "const": 201
+        },
+        "body": {
+          "$ref": "#/$defs/IngestResult"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "scenario",
+        "status",
+        "body"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scenario": {
+          "const": "version-date-only"
+        },
+        "status": {
+          "const": 200
+        },
+        "body": {
+          "$ref": "#/$defs/IngestResult"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "scenario",
+        "status",
+        "body"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scenario": {
+          "const": "version-smaller-participants"
+        },
+        "status": {
+          "const": 200
+        },
+        "body": {
+          "$ref": "#/$defs/IngestResult"
+        }
+      }
+    }
+  ]
+}

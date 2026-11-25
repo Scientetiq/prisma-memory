@@ -1,0 +1,108 @@
+{
+  "title": "PPTX with a hidden slide",
+  "description": "Three slides; slide 2 is hidden. Every slide, the hidden one included, gets its own page anchor, so pages is 3. The hidden slide stays in the text with its marker and does not change extraction. Any office file is withheld from agents (`office`). Markers in `en` (planned strings).",
+  "content_locale": "en",
+  "rule_status": "current",
+  "conversion": {
+    "status": "ready",
+    "markdown": "<!-- page: 1 -->\n\n## Slide 1. Project plan\n\nKick-off in March\n\nPilot in two teams\n\n<!-- page: 2 -->\n\n## Slide 2. Draft ideas (hidden)\n\nIdeas that are not final yet.\n\n<!-- page: 3 -->\n\n## Slide 3. Next steps\n\nAgree the pilot scope.\n",
+    "pages": 3,
+    "units": [
+      {
+        "kind": "slide",
+        "number": 1,
+        "method": "ooxml",
+        "chars": 47,
+        "images": 0,
+        "hidden": false,
+        "warnings": []
+      },
+      {
+        "kind": "slide",
+        "number": 2,
+        "method": "ooxml",
+        "chars": 40,
+        "images": 0,
+        "hidden": true,
+        "warnings": []
+      },
+      {
+        "kind": "slide",
+        "number": 3,
+        "method": "ooxml",
+        "chars": 32,
+        "images": 0,
+        "hidden": false,
+        "warnings": []
+      }
+    ],
+    "warnings": [],
+    "engine": {
+      "id": "builtin",
+      "release": "0.1.0"
+    }
+  },
+  "input": {
+    "status": "ready",
+    "error": null,
+    "text": "<!-- page: 1 -->\n\n## Slide 1. Project plan\n\nKick-off in March\n\nPilot in two teams\n\n<!-- page: 2 -->\n\n## Slide 2. Draft ideas (hidden)\n\nIdeas that are not final yet.\n\n<!-- page: 3 -->\n\n## Slide 3. Next steps\n\nAgree the pilot scope.\n",
+    "units": [
+      {
+        "kind": "slide",
+        "number": 1,
+        "method": "ooxml",
+        "chars": 47,
+        "images": 0,
+        "hidden": false,
+        "warnings": []
+      },
+      {
+        "kind": "slide",
+        "number": 2,
+        "method": "ooxml",
+        "chars": 40,
+        "images": 0,
+        "hidden": true,
+        "warnings": []
+      },
+      {
+        "kind": "slide",
+        "number": 3,
+        "method": "ooxml",
+        "chars": 32,
+        "images": 0,
+        "hidden": false,
+        "warnings": []
+      }
+    ],
+    "warnings": [],
+    "images_found": 0,
+    "engine_format": "pptx",
+    "detected_format": "pptx",
+    "source_flags": [],
+    "engine": {
+      "id": "builtin",
+      "release": "0.1.0"
+    }
+  },
+  "expected": {
+    "status": "ready",
+    "text": "<!-- page: 1 -->\n\n## Slide 1. Project plan\n\nKick-off in March\n\nPilot in two teams\n\n<!-- page: 2 -->\n\n## Slide 2. Draft ideas (hidden)\n\nIdeas that are not final yet.\n\n<!-- page: 3 -->\n\n## Slide 3. Next steps\n\nAgree the pilot scope.\n",
+    "pages": 3,
+    "extraction": "ready",
+    "agent_file": false,
+    "agent_file_why": [
+      "office"
+    ],
+    "warning_codes": [],
+    "ocr_units": 0,
+    "ocr_rerun": false,
+    "error_code": null,
+    "error_class": null,
+    "engine_format": "pptx",
+    "engine": {
+      "id": "builtin",
+      "release": "0.1.0"
+    }
+  }
+}

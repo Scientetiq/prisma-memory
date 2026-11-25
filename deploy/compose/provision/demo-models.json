@@ -1,0 +1,12 @@
+{
+  "format": "prisma-provision/1",
+  "$comment": "Demo profile (setup --demo): points the memory at the model simulator of the compose profile demo and names the three demo models, which are admitted as models running inside the installation (models.t0_aliases), so the model gate lets them through with no external provider allowed. On a fresh database every key here is unset or still equal to its default, so all are written. These six model settings form one group: if an administrator changed any member, all six are kept, preserving the configured connection and model gate. The simulator answers under any model name; to list these names in its GET /models (the gateway's model check) start it with MOCK_MODEL_IDS=demo-llm,demo-embeddings,demo-reranker. The key is not a secret: the simulator accepts any non-empty key. Apply: memory-admin provision apply deploy/compose/provision/demo-models.json",
+  "items": [
+    { "category": "models", "key": "gateway_base_url", "value": "http://demo-models:8700/v1" },
+    { "category": "models", "key": "gateway_api_key", "value": "demo-models-key" },
+    { "category": "models", "key": "llm_model", "value": "demo-llm" },
+    { "category": "models", "key": "t0_aliases", "value": ["demo-llm", "demo-embeddings", "demo-reranker"] },
+    { "category": "retrieval", "key": "embeddings_model", "value": "demo-embeddings" },
+    { "category": "retrieval", "key": "rerank_model", "value": "demo-reranker" }
+  ]
+}

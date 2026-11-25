@@ -1,0 +1,238 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://memory.invalid/contracts/edge/anchors-inner.schema.json",
+  "title": "Inner-perimeter trust anchors (trust-anchors-inner.json)",
+  "description": "Separate from the edge anchors. Inner perimeter only (~/memory/anchors or /etc/memory/anchors): never installed on the edge or bridge, because it contains administrator networks, objectGUID values and setting pins. Separate format, signature namespace (ssh-keygen -Y sign -n memory-anchors-inner) and serial: a document of one kind cannot pass as the other. Signed by the same 2 of 3 signers. Read by the gateway, admin panel and workers (shared/src/anchors.ts); they read the edge anchors (anchors.schema.json) separately.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "serial",
+    "issued_at",
+    "admin",
+    "settings_pins",
+    "settings_policy_sha256",
+    "signers"
+  ],
+  "properties": {
+    "format": {
+      "const": "memory-anchors-inner/1"
+    },
+    "serial": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "issued_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "admin": {
+      "description": "Administrators: networks, objectGUID values and WebAuthn keys.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "networks",
+        "ldap_ids",
+        "webauthn"
+      ],
+      "properties": {
+        "networks": {
+          "description": "Networks allowed to open the admin panel (admin.networks). Nonempty: with anchors active, an empty list would deny sign-in to everyone, so a draft with an empty list is not issued.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/cidr"
+          }
+        },
+        "ldap_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/guid"
+          }
+        },
+        "webauthn": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "ldap_id",
+              "credential_id",
+              "public_key_sha256"
+            ],
+            "properties": {
+              "ldap_id": {
+                "$ref": "#/$defs/guid"
+              },
+              "credential_id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{16,1366}$"
+              },
+              "public_key_sha256": {
+                "$ref": "#/$defs/sha256hex"
+              }
+            }
+          }
+        }
+      }
+    },
+    "settings_pins": {
+      "description": "Pinning of keys of class anchored. The name is <category>.<key>. {value} is only for a non-secret key without audit: fingerprint in the policy; a secret (secret in 04-seed.sql) and a key with audit: fingerprint (customer lists under NDA, open-check rules) take only {hmac}: HMAC-SHA256 with the key HKDF(appSecret, \"memory-anchors-pin\") over \"<category>.<key>\\n\" and the canonical JSON of the value. The HMAC key exists only inside; a bare sha256 is not accepted: a password can be recovered from it by brute force. The loader refuses when the kind of pinning is wrong.",
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z_]+\\.[a-z0-9_]+$"
+      },
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "value"
+            ],
+            "properties": {
+              "value": true
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "hmac"
+            ],
+            "properties": {
+              "hmac": {
+                "$ref": "#/$defs/sha256hex"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "settings_policy_sha256": {
+      "$ref": "#/$defs/sha256hex"
+    },
+    "security_mode_min": {
+      "description": "Security mode floor: the effective mode is the stricter of the security.mode setting and the floor of the latest applied inner anchors, the same in the gateway, the workers and the SQL security_mode(). With advanced, returning to basic is not possible without a new 2-of-3 document (with a basic floor) or a “retirement document” (floor_advanced). No field — no floor (earlier documents pass as before).",
+      "enum": [
+        "basic",
+        "advanced"
+      ]
+    },
+    "retire": {
+      "description": "“Retirement document”: a 2-of-3 signed end of the internal anchors with the target basic. An applied retirement document is a legacy state: no anchors-disabled marker and no daily alert; its pins and networks do not apply, and there is no mode floor. Its number is the same serial as the internal anchors: replay and rollback do not pass. It also replaces the second person’s signature in a return-to-basic request submitted before it was applied, when there is no second administrator with keys (once per serial). With the retire field, an advanced floor is not set.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target"
+      ],
+      "properties": {
+        "target": {
+          "const": "basic"
+        }
+      }
+    },
+    "signers": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 3,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^SHA256:[A-Za-z0-9+/]{43}$"
+      }
+    }
+  },
+  "if": {
+    "required": [
+      "retire"
+    ]
+  },
+  "then": {
+    "properties": {
+      "security_mode_min": {
+        "const": "basic"
+      }
+    }
+  },
+  "examples": [
+    {
+      "format": "memory-anchors-inner/1",
+      "serial": 3,
+      "issued_at": "2026-10-23T00:00:00Z",
+      "admin": {
+        "networks": [
+          "198.51.100.0/24"
+        ],
+        "ldap_ids": [
+          "00000000-0000-4000-8000-000000000001"
+        ],
+        "webauthn": []
+      },
+      "settings_pins": {
+        "smtp.host": {
+          "value": "smtp.example.test"
+        },
+        "smtp.password": {
+          "hmac": "3333333333333333333333333333333333333333333333333333333333333333"
+        },
+        "open_check.nda_customers": {
+          "hmac": "5555555555555555555555555555555555555555555555555555555555555555"
+        }
+      },
+      "settings_policy_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+      "security_mode_min": "advanced",
+      "signers": [
+        "SHA256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "SHA256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "SHA256:ccccccccccccccccccccccccccccccccccccccccccc"
+      ]
+    },
+    {
+      "format": "memory-anchors-inner/1",
+      "serial": 4,
+      "issued_at": "2026-11-02T00:00:00Z",
+      "admin": {
+        "networks": [
+          "198.51.100.0/24"
+        ],
+        "ldap_ids": [
+          "00000000-0000-4000-8000-000000000001"
+        ],
+        "webauthn": []
+      },
+      "settings_pins": {},
+      "settings_policy_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+      "retire": {
+        "target": "basic"
+      },
+      "signers": [
+        "SHA256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "SHA256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      ]
+    }
+  ],
+  "$defs": {
+    "cidr": {
+      "description": "Network: IPv4 prefix at least /8, IPv6 at least /32; /0 and other “whole internet” ranges are rejected (X-Forwarded-For trust, administrator networks).",
+      "type": "string",
+      "anyOf": [
+        {
+          "pattern": "^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])(\\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])){3}/([89]|[12][0-9]|3[0-2])$"
+        },
+        {
+          "pattern": "^[0-9a-fA-F]{0,4}(:[0-9a-fA-F]{0,4}){2,7}/(3[2-9]|[4-9][0-9]|1[01][0-9]|12[0-8])$"
+        }
+      ]
+    },
+    "guid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "sha256hex": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

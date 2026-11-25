@@ -1,0 +1,91 @@
+{
+  "title": "Empty presentation",
+  "description": "Two slides with no text and no titles. The text still holds one page anchor and one slide heading per slide, but no source text was extracted: every unit has chars 0, so extraction is unavailable and `no_text` joins `office`. Anchors, generated headings and markers never count into chars.",
+  "content_locale": "en",
+  "rule_status": "current",
+  "conversion": {
+    "status": "ready",
+    "markdown": "<!-- page: 1 -->\n\n## Slide 1\n\n<!-- page: 2 -->\n\n## Slide 2\n",
+    "pages": 2,
+    "units": [
+      {
+        "kind": "slide",
+        "number": 1,
+        "method": "ooxml",
+        "chars": 0,
+        "images": 0,
+        "hidden": false,
+        "warnings": []
+      },
+      {
+        "kind": "slide",
+        "number": 2,
+        "method": "ooxml",
+        "chars": 0,
+        "images": 0,
+        "hidden": false,
+        "warnings": []
+      }
+    ],
+    "warnings": [],
+    "engine": {
+      "id": "builtin",
+      "release": "0.1.0"
+    }
+  },
+  "input": {
+    "status": "ready",
+    "error": null,
+    "text": "<!-- page: 1 -->\n\n## Slide 1\n\n<!-- page: 2 -->\n\n## Slide 2\n",
+    "units": [
+      {
+        "kind": "slide",
+        "number": 1,
+        "method": "ooxml",
+        "chars": 0,
+        "images": 0,
+        "hidden": false,
+        "warnings": []
+      },
+      {
+        "kind": "slide",
+        "number": 2,
+        "method": "ooxml",
+        "chars": 0,
+        "images": 0,
+        "hidden": false,
+        "warnings": []
+      }
+    ],
+    "warnings": [],
+    "images_found": 0,
+    "engine_format": "pptx",
+    "detected_format": "pptx",
+    "source_flags": [],
+    "engine": {
+      "id": "builtin",
+      "release": "0.1.0"
+    }
+  },
+  "expected": {
+    "status": "ready",
+    "text": "<!-- page: 1 -->\n\n## Slide 1\n\n<!-- page: 2 -->\n\n## Slide 2\n",
+    "pages": 2,
+    "extraction": "unavailable",
+    "agent_file": false,
+    "agent_file_why": [
+      "office",
+      "no_text"
+    ],
+    "warning_codes": [],
+    "ocr_units": 0,
+    "ocr_rerun": false,
+    "error_code": null,
+    "error_class": null,
+    "engine_format": "pptx",
+    "engine": {
+      "id": "builtin",
+      "release": "0.1.0"
+    }
+  }
+}

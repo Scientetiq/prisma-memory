@@ -1,0 +1,1286 @@
+openapi: 3.1.0
+info:
+  title: Document engine · open HTTP contract
+  version: 0.3.0
+  x-version-notes:
+    - "Version 0.3.0: the first public version."
+  summary: How the document pipeline core talks to a document engine over HTTP
+  description: |
+    The open HTTP contract between the core of the document pipeline and a document engine: the optional
+    document-processing module, or any third-party converter that implements this file. The engine turns one file into
+    record text in the Markdown dialect described below, plus units, or into a `DocModel` that the
+    core renders itself. Everything the core decides from the result (extraction completeness, whether agents may
+    receive the original, reruns, failures) is decided by the core, once, for every engine. Engines MUST NOT
+    re-implement those rules.
+
+    **Status.** No code speaks this contract in this revision. The core adapter (`http`), a public mock engine for this
+    contract, the document-processing module and office conversions are planned.
+    Today the only engine is DC, reached through its own protocol by the DC adapter.
+    Where this file says "current", it describes the DC adapter and cites the code.
+
+    **Normative text.** This file fixes the wire shapes, field semantics, failure classes and producer rules for all engines.
+    The JSON Schemas under `./schemas/` are shared with the core and are referenced here.
+
+    **Markdown dialect.** Use a single whole line `<!-- page: N -->` before each PDF page and each slide, including
+    hidden slides. Use exactly the illustrated spaces and lowercase spelling. Write positive ASCII decimal
+    numbers in increasing order without leading zeros, outside code fences. Formats without a fixed page model
+    have no anchors and use `pages: null`. Do not infer anchors from layout hints or estimated page breaks.
+    Use ATX headings at column 0, pipe tables with leading and trailing pipes and a separator row,
+    ordinary list markers followed by a space and triple-backtick code fences. Blockquotes are allowed.
+    Do not emit front matter or image links. Avoid HTML comments other than anchors.
+
+    For English content, a slide heading is `## Slide N` or `## Slide N. <title>`, with ` (hidden)`
+    appended for a hidden slide. Put a blank line between its anchor and heading. Speaker notes start with
+    `> **Speaker notes:**`, followed by a blockquoted line per paragraph. Figure markers are `[figure]`
+    or `[figure: <caption>]`. A sheet heading is `## <sheet name>`, with ` (hidden)` for a hidden sheet.
+    Append ` (hidden row)` to the first cell of a hidden row and ` (hidden column)` to the cell in
+    the first row of a hidden column. Write footnote and endnote references as `[^n]` with corresponding
+    `[^n]: <text>` definitions after the body.
+
+    For Russian content (`content_locale: ru`), the marker words are Russian; this description names them by
+    their code points, and the worked example `examples/pptx-hidden-slide-ru.json` shows the slide and hidden
+    words in use. These words are normative byte for byte:
+    - slide heading word (U+0421 U+043B U+0430 U+0439 U+0434): `## <word> N` or `## <word> N. <title>`;
+    - hidden suffix word (U+0441 U+043A U+0440 U+044B U+0442 U+044B U+0439): ` (<word>)` after the heading of a hidden slide;
+    - figure word (U+0440 U+0438 U+0441 U+0443 U+043D U+043E U+043A): `[<word>]` or `[<word>: <caption>]`.
+    Engines SHOULD open speaker notes with `> **<notes>:**`, where `<notes>` is
+    U+0417 U+0430 U+043C U+0435 U+0442 U+043A U+0438 U+0020 U+0434 U+043E U+043A U+043B U+0430 U+0434 U+0447 U+0438 U+043A U+0430,
+    SHOULD use `## <sheet name>` for sheet headings and the hidden suffix word for a hidden sheet.
+    Russian hidden row and column markers are unspecified.
+    Use the same locale-neutral footnote and endnote form.
+    Figure captions come from alternative text with Markdown escapes removed and outer whitespace trimmed.
+
+    The core checks anchor grammar and computes the page count from record text. Marker words do not affect
+    anchors or extraction completeness. The chosen content locale applies for the lifetime of the conversion.
+
+    **Versioning.** This contract has its own version, independent of the MCP and REST contracts. It starts at 0.1.0.
+    The versioned files are this file, the schemas under `./schemas/` and the worked examples under `./examples/`
+    (with `examples/index.json`); `info.version` is their one version number, and the schemas and examples carry no
+    version field of their own. A task that changes any of them raises the minor version once, counted from the version
+    on the current `main` at the start of the task, adds a note starting with "Version X.Y.Z" to `info.x-version-notes`
+    and a line "X.Y.Z — …" under **Changes** below. A change to the producer rules, code classes or outcome rules that changes
+    what an engine must send, or what the core does with an answer, is a change of this contract and raises the version
+    in the same change, with its **Changes** line. The repository's version rule compares only this file, the schemas
+    and the examples, so that line makes such a change visible to it. The contract review determines whether
+    a change affects engine or core behavior. Adding a code to a registry is a minor change. Consumers keep unknown codes and ignore
+    them. Removing or renaming a code, or changing its class or effect, is breaking.
+
+    **Members of answers.** An engine sends only the members that the contract version it reports defines; the schemas
+    are strict (`additionalProperties: false`) so that engine tests catch extra members. The core is tolerant: before
+    it validates an answer it removes, at every level, the members that its own contract version does not define, and
+    logs only how many it removed (planned with the `http` adapter). `details` of `NormalizedConversion` is not defined
+    for engine answers and is removed the same way. Adding an optional member to an answer is therefore a minor change;
+    adding a required member, or one whose absence changes the meaning of an answer, is breaking.
+
+    **Flow.**
+    1. `GET /v1/capabilities` (authenticated): formats, recognition, limits, `async`, idempotency retention, release.
+       The core accepts only the intersection of the installation's formats and the engine's formats.
+    2. `POST /v1/conversions` with the file, its format, the content locale, the recognition policy and languages,
+       the limits, and an `Idempotency-Key`. The engine answers `200` with the result, or `202` with a job. An engine
+       with `async: true` keeps a job for every accepted request and names it on `200` too, in `Location`.
+    3. For a job, `GET /v1/conversions/{id}` until `state` is `completed`, `failed` or `cancelled`. A `completed` job
+       always carries the result: there is no gap between "finished" and "result available".
+    4. `DELETE /v1/conversions/{id}` forgets the job and its result (planned for the core, see the operation). The id
+       comes from the `202` body or from `Location` of a `200`.
+    5. `POST /v1/office-conversions` turns a legacy office file into OOXML for the core's own reader.
+    `GET /v1/health` is unauthenticated and is the breaker probe.
+
+    **Authentication.** A bearer token that the administrator sets in the panel and that the core stores as a secret.
+    Every operation except `GET /v1/health` requires it. `401` or `403` on any operation means `config` to the core: the
+    breaker stays open until the URL or the token changes.
+
+    **Idempotency.** `POST /v1/conversions` requires `Idempotency-Key`. An engine with `async: true` creates and keeps a
+    job for every accepted request, also when it answers `200`, and always names it: the `id` of a `202` body, or the
+    `Location` header of a `200`. It never starts a second job for a repeat with the same key and the same request: it
+    returns the same job (`202`) or its result (`200` with the same `Location`). The same key with a different request
+    is `409 idempotency_conflict`. A key, its job and its result are kept until the core deletes the job or until
+    `idempotency.retention_sec` (capabilities) after the job finished, whichever comes first; unfinished jobs are kept.
+    An engine with `async: false` creates no job, sends no `Location`, keeps nothing after it has answered and MAY
+    convert a repeat again.
+    The core's key is deterministic and never contains the attempt number (current DC keys:
+    `packages/shared/src/converter.ts:233-262`), so a resend after a dropped connection reuses the key.
+
+    **Results.** A result has one of two forms (`ConversionResult`):
+    * Markdown form: `markdown` plus `units`, shaped as `NormalizedConversion` (`./schemas/NormalizedConversion.json`)
+      without `details` (`MarkdownResult`).
+      The core re-checks the page anchors and recomputes `pages` from the text.
+    * Model form: `doc` (`./schemas/DocModel.json`), no `markdown` and no `units`. The core renders the model with its
+      shared renderer, which applies the hidden-content policy and the content locale, and derives units from the
+      containers. The document-processing module answers in this form.
+    The result's `status` (`ready`, `partial`, `failed`) is the engine's own run status, not extraction completeness
+    as determined by the core. A document the engine could not convert is a result with `status: failed` and a code from Engine failure codes.
+    This is a normal answer in the result body. Transport failures are reported through the HTTP error response.
+
+    **Errors.** Every error body is `application/problem+json` (RFC 9457) with a machine `code` (`Problem`). The core
+    reads only `code`, the HTTP status and `Retry-After`. It never logs or stores the text of `title` or `detail`, at most
+    their length and a fingerprint (current DC adapter: the text stays on the error object, and logs carry its length and
+    a 12-hex fingerprint, `packages/shared/src/converter.ts:589`, `packages/workers/src/stages.ts:196-199`,
+    `packages/workers/src/stages.ts:376-377`). Engine failure codes belong
+    to three classes: `terminal` (final, never retried), `rerun` (one new run
+    later, then final), `job_error` (step error with backoff; an unknown code also counts toward the mismatch fuse,
+    because it means the contract drifted). The core uses these classifications to decide what to retry. It adapts the current
+    classifier `classifyConverterError` (`packages/shared/src/converter-gate.ts:359-384`) with one deliberate change:
+    `401` and `403` mean `config` on every operation. Today only a refused login means `config`; a `401` or `403` on a
+    document request after a fresh login is a step error plus mismatch (`packages/shared/src/converter-gate.ts:368`,
+    `packages/shared/src/converter-gate.ts:378`). A bearer token has no login step, so this contract follows the login
+    branch.
+
+    **Engine failure codes.** The terminal codes are `encrypted`, `unsupported_format`, `malformed_document`,
+    `malformed_pdf`, `no_pages`, `input_too_large`, `too_many_pages` and `resource_limit`.
+    The rerun codes are `timeout`, `converter_crashed`, `memory_limit` and `converter_output_invalid`.
+    `conversion_failed`, `unknown` and an unregistered snake_case code are step errors.
+    A failure code uses one lowercase ASCII letter followed by up to 63 lowercase ASCII letters, digits or
+    underscores. The core uses `conversion_failed` when the engine omits the code and `unknown` when its
+    value does not match that form.
+
+    | Answer | Core class | Effect |
+    |---|---|---|
+    | Network error, `502` | `unavailable` | breaker opens |
+    | `503`, `504`, request timeout | decided by `GET /v1/health`: not OK → `unavailable`, OK → document error | |
+    | `429` | throttled wait | `Retry-After` clamped to 15 s–15 min, breaker untouched (current: `packages/shared/src/converter-gate.ts:396`) |
+    | `401`, `403` | `config` | breaker open until the URL or token changes |
+    | `413` | `terminal`, too large | |
+    | `422` on `POST /v1/conversions` with a terminal failure code | `terminal` | |
+    | `400`, `422` on `POST /v1/conversions` with any other code or none, other `5xx`, a body that does not match this file after undefined members are removed | `job_error` plus mismatch | |
+    | `404` on `GET /v1/conversions/{id}`, `409 idempotency_conflict` | loss of the job | new generation and resubmit, at most 3 per cycle |
+    | `422` on `POST /v1/office-conversions` | class of its failure code | the endpoint has no result body to carry a document failure |
+    | `200` result or `completed` job with result `status: failed` | class of the result's `error` | |
+    | text over `text_max_bytes` | the engine answers `failed` with `resource_limit`: `terminal`, too large | |
+    | job `failed` | `rerun` | its error's `class` is `rerun` |
+    | job `cancelled` | final, no automatic retry | |
+
+    **Data handling.** The core sends an opaque file name (`<record id>.<extension>`, current DC adapter:
+    `packages/workers/src/jobs/convert.ts:359-370`); the real file name, the record's data class and its owner are never
+    sent. Engines MUST NOT put document text, file names or file contents in logs or in problem bodies, and they send
+    no `details`. An asynchronous engine keeps a job's file and result only until the core deletes the job or until
+    `idempotency.retention_sec` after the job finished, whichever comes first; unfinished jobs are kept. This holds for
+    every job it keeps, including one answered with `200`, whose id is in `Location`. A synchronous
+    engine keeps nothing after its answer. The document-processing module keeps nothing on persistent storage and holds
+    a finished result in memory under the same rule. Data stays inside the installation unless the administrator
+    chooses an external engine or model recognition.
+
+    **Changes.** 0.3.0 — the first public version.
+servers:
+  - url: https://document-engine.example.com
+    description: Base URL of the engine, taken from the installation settings
+security:
+  - EngineToken: []
+tags:
+  - name: engine
+    description: Capabilities and health of the engine
+  - name: conversions
+    description: Converting one file into record text, synchronously or as a job
+  - name: office
+    description: Converting legacy office files into OOXML for the core's own reader
+
+paths:
+  /v1/capabilities:
+    get:
+      tags: [engine]
+      operationId: getCapabilities
+      summary: What the engine can do
+      description: |
+        Formats, recognition mode and languages, limits, asynchronous jobs, idempotency retention, engine release and the
+        contract version. This is the authenticated probe: `401` or `403` here means `config` to the core.
+
+        The core reads capabilities when the engine is configured and then periodically, and sends only formats that
+        are both in `formats` and enabled in the installation. Planned (not current): a change of `release` or `formats`
+        is written to the journal as an engine-neutral event. Current DC adapter: a capability read at worker start and
+        every 10 min, and a `caps_changed` journal event when it changes (`packages/workers/src/jobs/convert-pass.ts:20-22`,
+        `packages/workers/src/jobs/convert-pass.ts:50-72`).
+      responses:
+        '200':
+          description: Capabilities of the engine
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Capabilities' }
+              examples:
+                processing_module:
+                  summary: An asynchronous engine with local recognition and office conversions
+                  value:
+                    contract_version: 0.1.0
+                    release: example-engine 1.4.2
+                    formats: [pdf, docx, pptx, xlsx, csv]
+                    office_formats: [doc, ppt, rtf, odt, ods, odp]
+                    ocr: { mode: local, languages: [eng, rus] }
+                    limits: { max_bytes: 20971520, max_pages: 2000, max_deadline_sec: 3600 }
+                    async: true
+                    idempotency: { retention_sec: 3600 }
+                synchronous_text_only:
+                  summary: A synchronous engine without recognition
+                  value:
+                    contract_version: 0.1.0
+                    release: null
+                    formats: [pdf, docx]
+                    ocr: { mode: none, languages: [] }
+                    limits: { max_bytes: 10485760, max_pages: null, max_deadline_sec: 300 }
+                    async: false
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/Throttled' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+
+  /v1/health:
+    get:
+      tags: [engine]
+      operationId: getHealth
+      summary: Liveness for the breaker probe
+      description: |
+        No token. Returns no data about documents, jobs or configuration. `200` with `status: ok` means the engine can
+        accept work; any other answer, a network error or no answer within 10 s means "not OK".
+
+        The core uses this probe to close an open breaker after
+        `unavailable`; to tell "the engine is down" (`unavailable`) from "the engine cannot do this document"
+        (document error) after a `503`, `504` or request timeout; before it marks a job queued too long as suspect; and
+        as the last condition of the stalled fuse, a probe that today can run while other admissions wait for it
+        to finish. It therefore MUST NOT depend on the token.
+
+        Current DC probe: no login, at most 10 s, answer cached 30 s, redirects not followed; OK = a `2xx` status and a
+        `status` field that is absent or equal to `ok` in any case (`packages/shared/src/converter-session.ts:27-29`,
+        `packages/shared/src/converter-session.ts:186-205`).
+      security: []
+      responses:
+        '200':
+          description: The engine can accept work
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Health' }
+              examples:
+                ok:
+                  value: { status: ok }
+        '503':
+          description: The engine is up but cannot accept work (starting, stopping, a dependency is missing)
+          headers:
+            Retry-After: { $ref: '#/components/headers/RetryAfter' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Health' }
+              examples:
+                unavailable:
+                  value: { status: unavailable }
+
+  /v1/conversions:
+    post:
+      tags: [conversions]
+      operationId: createConversion
+      summary: Convert one file
+      description: |
+        Converts one file into record text. The engine answers `200` with the result when it finishes within its own
+        budget for a synchronous answer, or `202` with a job. An engine with `async: true` creates and keeps a job for
+        every accepted request, even when it answers `200`, and names it: in the `202` body (`id`) or in the `Location`
+        header of the `200`. Only an engine with `async: false` answers without a job; it always answers `200` or an
+        error. The core accepts both answers from any engine.
+
+        **Request rules.**
+        * `format` is the format the core detected at intake. Content that does not match it is a final failure
+          (`unsupported_format` or `malformed_document`).
+        * `locale` selects the slide headings, hidden suffixes, speaker-notes and figure markers.
+          Engines MUST use the exact marker strings listed under Markdown dialect for every `en` string and for the
+          `ru` slide heading, hidden-slide suffix and figure markers, which are the current strings byte for byte. The
+          other `ru` strings listed under Markdown dialect SHOULD be used as written where defined.
+        * `ocr` is the recognition policy. `off`: the engine MUST NOT recognise anything; a page or slide that would
+          need recognition gets the unit method `ocr_unavailable`. `local` or `model`: the engine recognises with that
+          kind of recogniser, only in `ocr_languages`. A policy the engine does not offer (`capabilities.ocr.mode`) is
+          `400 invalid_request`. A unit in the recognition set makes extraction `partial` in the core.
+          The set contains `ocr_unavailable`, `ocr_failed`, `ocr_pending` and the DC alias `ocr`.
+          `ocr_local` and `ocr_model` join that set with the `http` adapter (planned).
+        * `ocr_languages` is REQUIRED when `ocr` is not `off`. Languages are always explicit; automatic language
+          choice is not allowed.
+        * Limits: a file larger than `capabilities.limits.max_bytes` is `413 input_too_large`. More pages than
+          `max_pages` is a final failure `too_many_pages`. Text longer than `text_max_bytes` (UTF-8 bytes of the
+          Markdown) is a final failure `resource_limit`; engines MUST NOT cut the text silently. A conversion that does
+          not finish within `deadline_sec` is a failure `timeout` (class `rerun`). The core sends resolved values:
+          `text_max_bytes` is its text cap, and `deadline_sec` is the engine's run budget, never longer than
+          `capabilities.limits.max_deadline_sec` once the HTTP adapter is in use.
+        * The result follows the dialect: one `<!-- page: N -->` anchor per PDF page and per slide (hidden slides
+          included), no anchors for word-processing files, spreadsheets and CSV (`pages = null`), no image links,
+          no front matter. See Markdown dialect for the anchor grammar and structure.
+
+        **Idempotency.** `Idempotency-Key` is REQUIRED. For an engine with `async: true`, same key and same request:
+        the same job id (`202`) or its result (`200` with `Location` of that job), never a second job; same key and a
+        different request: `409 idempotency_conflict`, which the core treats as loss of the job (new generation, at
+        most 3 per cycle). "Same request" means the same file bytes and the same form fields. An engine with
+        `async: false` creates no job and keeps nothing, and MAY convert a repeat again; its answer depends only on the
+        request.
+
+        **Throttling.** An engine at capacity SHOULD answer `429` with `Retry-After`: the core waits without touching
+        the breaker. `503` means the engine is unavailable; the core then asks `GET /v1/health`.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { $ref: '#/components/schemas/ConversionRequest' }
+            encoding:
+              file:
+                contentType: >-
+                  application/pdf, application/vnd.openxmlformats-officedocument.wordprocessingml.document,
+                  application/msword, application/vnd.oasis.opendocument.text, application/rtf,
+                  application/vnd.openxmlformats-officedocument.presentationml.presentation,
+                  application/vnd.ms-powerpoint, application/vnd.oasis.opendocument.presentation,
+                  application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,
+                  application/vnd.oasis.opendocument.spreadsheet, text/csv
+            examples:
+              pdf_no_ocr:
+                summary: A PDF, English markers, recognition off
+                value:
+                  file: (binary, sent as 0194f2c3-7d1e-7a4b-9c2d-5e6f7a8b9c0d.pdf)
+                  format: pdf
+                  locale: en
+                  ocr: 'off'
+                  sha256: 9f2b5c1e7a3d4f6b8c0e2a4d6f8b0c2e4a6d8f0b2c4e6a8d0f2b4c6e8a0d2f4b
+                  text_max_bytes: 41943040
+                  max_pages: 2000
+                  deadline_sec: 3600
+              pptx_local_ocr_ru:
+                summary: A slide deck, Russian markers, local recognition in two languages
+                value:
+                  file: (binary, sent as 0194f2c3-8e2f-7b5c-8d3e-6f7a8b9c0d1e.pptx)
+                  format: pptx
+                  locale: ru
+                  ocr: local
+                  ocr_languages: rus+eng
+                  deadline_sec: 3600
+      responses:
+        '200':
+          description: |
+            The conversion finished; the body is the result. A result with `status: failed` is a document failure with
+            an engine failure code from this contract. Transport errors use the HTTP error response.
+
+            From an engine with `async: true`, `Location` is REQUIRED and names the job that the engine keeps for this
+            key: the same id that a `202` would carry, also when a repeat is answered with the result. From an engine
+            with `async: false`, there is no `Location`: nothing is kept and there is nothing to delete.
+          headers:
+            Location: { $ref: '#/components/headers/Location' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConversionResult' }
+              examples:
+                ready_pdf:
+                  summary: A two-page PDF with a text layer (markdown form)
+                  value:
+                    status: ready
+                    error: null
+                    markdown: |
+                      <!-- page: 1 -->
+
+                      # Annual report
+
+                      Revenue grew in every region.
+
+                      <!-- page: 2 -->
+
+                      ## Outlook
+
+                      | Region | Plan |
+                      |---|---|
+                      | North | 12 |
+                    pages: 2
+                    units:
+                      - { kind: page, number: 1, method: pdf_text, chars: 42, images: 0, warnings: [] }
+                      - { kind: page, number: 2, method: pdf_text, chars: 24, images: 0, warnings: [] }
+                    warnings: []
+                    engine: { id: example-engine, release: example-engine 1.4.2 }
+                scan_partial:
+                  summary: Page 2 is a scan recognised locally; with the planned recognition set the core sets extraction to partial
+                  value:
+                    status: partial
+                    error: null
+                    markdown: |
+                      <!-- page: 1 -->
+
+                      # Delivery terms
+
+                      Goods are delivered within ten days.
+
+                      <!-- page: 2 -->
+
+                      Signed by both parties.
+                    pages: 2
+                    units:
+                      - { kind: page, number: 1, method: pdf_text, chars: 50, images: 0, warnings: [] }
+                      - { kind: page, number: 2, method: ocr_local, chars: 23, images: 1, warnings: [] }
+                    warnings: []
+                    engine: { id: example-engine, release: example-engine 1.4.2 }
+                document_failed:
+                  summary: The file is encrypted (final failure, class terminal)
+                  value:
+                    status: failed
+                    error: encrypted
+                    markdown: null
+                    pages: null
+                    units: []
+                    warnings: []
+                    engine: { id: example-engine, release: example-engine 1.4.2 }
+                model_pdf_scan:
+                  summary: Model form from the document-processing module; page 2 recognised locally
+                  value:
+                    status: partial
+                    error: null
+                    doc:
+                      containers:
+                        - kind: page
+                          number: 1
+                          method: pdf_text
+                          warnings: []
+                          blocks:
+                            - { type: heading, level: 1, text: Inspection report }
+                            - { type: paragraph, text: The site meets the requirements. }
+                            - { type: figure, caption: Site plan }
+                        - kind: page
+                          number: 2
+                          method: ocr_local
+                          warnings: []
+                          blocks:
+                            - { type: paragraph, text: Signed by the inspector. }
+                    warnings: []
+                    engine: { id: example-engine, release: example-engine 1.4.2 }
+                model_failed:
+                  summary: Model form, damaged PDF (final failure, class terminal)
+                  value:
+                    status: failed
+                    error: malformed_pdf
+                    doc: null
+                    warnings: []
+                    engine: { id: example-engine, release: example-engine 1.4.2 }
+        '202':
+          description: |
+            Accepted as a job. Poll `GET /v1/conversions/{id}`. The core polls on its own cadence (current: an inline
+            wait of up to 20 s every 5 s, then every 30 s, 120 s or 300 s by the job's age, ±20 %;
+            `packages/workers/src/conversion-rules.ts:43-56`); `Retry-After` is a hint.
+          headers:
+            Location: { $ref: '#/components/headers/Location' }
+            Retry-After: { $ref: '#/components/headers/RetryAfter' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConversionJob' }
+              examples:
+                queued:
+                  value:
+                    id: cj_01JBX4Q9M2V7R8T6Y5W4E3D2C1
+                    state: queued
+                    created_at: '2026-11-04T10:15:00Z'
+                    started_at: null
+                    finished_at: null
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/IdempotencyConflict' }
+        '413': { $ref: '#/components/responses/TooLarge' }
+        '422': { $ref: '#/components/responses/FileRejected' }
+        '429': { $ref: '#/components/responses/Throttled' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+
+  /v1/conversions/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ConversionId'
+    get:
+      tags: [conversions]
+      operationId: getConversion
+      summary: Job state, and the result when completed
+      description: |
+        `state` is the job lifecycle: `queued` → `running` → `completed` | `failed` | `cancelled`. The name `status` is
+        reserved for the result's own run status.
+        * `completed` MUST carry `result`. The result's own `status` may be `failed`: that is a document failure,
+          classified by its engine failure code.
+        * `failed` means the job failed without a result (for example the conversion process died). The core treats
+          it as class `rerun`: one new `POST` with a new key later, if reruns remain in the cycle, then a
+          final failure. The `class` in the job's `error` MUST be `rerun`. A document the engine cannot convert is not a
+          `failed` job: it is `completed` with a result whose `status` is `failed`.
+        * `cancelled` means the engine stopped the job (operator, shutdown). The core fails the record without an
+          automatic retry.
+
+        The core's watchdog counts from the job's submission. A job `queued`
+        too long is suspect (when health is OK) and later replaced by a new job or failed; a job `running` past the
+        run deadline is replaced or failed. That run deadline is always longer than the `deadline_sec` the core sends,
+        so the engine's own `timeout` comes first once the HTTP adapter is in use. Engines SHOULD move a job to `running` only when
+        work on it starts, so that waiting for a slot and working can be told apart.
+
+        `404` means the engine does not know the id (never created, forgotten after `DELETE`, or expired after
+        `idempotency.retention_sec`). The core treats it as loss of the job: new generation and resubmit, at most 3 per
+        cycle (current DC rules: lost upload `packages/shared/src/converter.ts:290-297`, generation bumps
+        `packages/shared/src/converter.ts:264-297`).
+      responses:
+        '200':
+          description: The job
+          headers:
+            Retry-After: { $ref: '#/components/headers/RetryAfter' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConversionJob' }
+              examples:
+                running:
+                  value:
+                    id: cj_01JBX4Q9M2V7R8T6Y5W4E3D2C1
+                    state: running
+                    created_at: '2026-11-04T10:15:00Z'
+                    started_at: '2026-11-04T10:15:04Z'
+                    finished_at: null
+                completed_pptx_hidden_slide:
+                  summary: A three-slide deck, slide 2 hidden (English markers)
+                  value:
+                    id: cj_01JBX4Q9M2V7R8T6Y5W4E3D2C1
+                    state: completed
+                    created_at: '2026-11-04T10:15:00Z'
+                    started_at: '2026-11-04T10:15:04Z'
+                    finished_at: '2026-11-04T10:15:31Z'
+                    result:
+                      status: ready
+                      error: null
+                      markdown: |
+                        <!-- page: 1 -->
+
+                        ## Slide 1. Quarterly plan
+
+                        Launch in two regions
+
+                        <!-- page: 2 -->
+
+                        ## Slide 2. Draft numbers (hidden)
+
+                        Budget to be confirmed
+
+                        <!-- page: 3 -->
+
+                        ## Slide 3. Next steps
+
+                        Review in December
+                      pages: 3
+                      units:
+                        - { kind: slide, number: 1, method: ooxml, chars: 35, images: 0, warnings: [] }
+                        - { kind: slide, number: 2, method: ooxml, chars: 35, images: 0, hidden: true, warnings: [] }
+                        - { kind: slide, number: 3, method: ooxml, chars: 28, images: 0, warnings: [] }
+                      warnings: []
+                      engine: { id: example-engine, release: example-engine 1.4.2 }
+                completed_ru_markers:
+                  summary: The same kind of deck with Russian markers (content_locale ru); slide 2 is hidden
+                  value:
+                    id: cj_01JBX5R0N3W8S9U7Z6X5F4E3D2
+                    state: completed
+                    created_at: '2026-11-04T10:20:00Z'
+                    started_at: '2026-11-04T10:20:02Z'
+                    finished_at: '2026-11-04T10:20:09Z'
+                    result:
+                      status: ready
+                      error: null
+                      markdown: |
+                        <!-- page: 1 -->
+
+                        ## Слайд 1. Plan
+
+                        <!-- page: 2 -->
+
+                        ## Слайд 2 (скрытый)
+
+                        Check the totals.
+                      pages: 2
+                      units:
+                        - { kind: slide, number: 1, method: ooxml, chars: 4, images: 0, warnings: [] }
+                        - { kind: slide, number: 2, method: ooxml, chars: 17, images: 0, hidden: true, warnings: [] }
+                      warnings: []
+                      engine: { id: example-engine, release: example-engine 1.4.2 }
+                completed_table_truncated:
+                  summary: A spreadsheet whose table was cut at the engine limit (extraction stays ready in the core)
+                  value:
+                    id: cj_01JBX6S1P4X9T0V8A7Y6G5F4E3
+                    state: completed
+                    created_at: '2026-11-04T10:30:00Z'
+                    started_at: '2026-11-04T10:30:01Z'
+                    finished_at: '2026-11-04T10:30:12Z'
+                    result:
+                      status: partial
+                      error: null
+                      markdown: |
+                        ## Sales
+
+                        | Month | Units |
+                        |---|---|
+                        | January | 120 |
+                      pages: null
+                      units:
+                        - { kind: sheet, number: 1, method: ooxml, chars: 20, images: 0, warnings: [table_truncated] }
+                      warnings: []
+                      engine: { id: example-engine, release: example-engine 1.4.2 }
+                completed_model_pptx_hidden_slide:
+                  summary: Model form of a deck; slide 2 is hidden and has speaker notes (the core renders markers by locale)
+                  value:
+                    id: cj_01JBX7T2Q5Y0V1W9B8Z7H6G5F4
+                    state: completed
+                    created_at: '2026-11-04T10:45:00Z'
+                    started_at: '2026-11-04T10:45:02Z'
+                    finished_at: '2026-11-04T10:45:20Z'
+                    result:
+                      status: ready
+                      error: null
+                      doc:
+                        containers:
+                          - kind: slide
+                            number: 1
+                            title: Quarterly plan
+                            method: ooxml
+                            warnings: []
+                            blocks:
+                              - { type: list, ordered: false, items: [{ text: Launch in two regions }] }
+                          - kind: slide
+                            number: 2
+                            title: Draft numbers
+                            hidden: true
+                            method: ooxml
+                            warnings: []
+                            blocks:
+                              - { type: list, ordered: false, items: [{ text: Budget to be confirmed }] }
+                              - { type: speaker_notes, paragraphs: [Mention the deadlines.] }
+                      warnings: []
+                      engine: { id: example-engine, release: example-engine 1.4.2 }
+                completed_model_docx_footnote:
+                  summary: Model form of a word-processing file with a footnote; no pages, so no anchors
+                  value:
+                    id: cj_01JBX8V3R6Z1W2X0C9A8J7H6G5
+                    state: completed
+                    created_at: '2026-11-04T11:00:00Z'
+                    started_at: '2026-11-04T11:00:01Z'
+                    finished_at: '2026-11-04T11:00:04Z'
+                    result:
+                      status: ready
+                      error: null
+                      doc:
+                        containers:
+                          - kind: file
+                            number: null
+                            method: ooxml
+                            warnings: []
+                            blocks:
+                              - { type: heading, level: 1, text: Service agreement }
+                              - type: paragraph
+                                text: [The term is one year, { note_ref: '1' }, .]
+                              - { type: table, header_row: true, rows: [{ cells: [Item, Price] }, { cells: [Support, '100'] }] }
+                              - { type: note, note_kind: footnote, id: '1', text: Renewed automatically. }
+                      warnings: []
+                      engine: { id: example-engine, release: example-engine 1.4.2 }
+                failed_without_result:
+                  summary: The conversion process died; class rerun
+                  value:
+                    id: cj_01JBX4Q9M2V7R8T6Y5W4E3D2C1
+                    state: failed
+                    created_at: '2026-11-04T10:15:00Z'
+                    started_at: '2026-11-04T10:15:04Z'
+                    finished_at: '2026-11-04T10:16:10Z'
+                    error:
+                      type: about:blank
+                      title: Conversion process crashed
+                      code: converter_crashed
+                      class: rerun
+                cancelled:
+                  value:
+                    id: cj_01JBX4Q9M2V7R8T6Y5W4E3D2C1
+                    state: cancelled
+                    created_at: '2026-11-04T10:15:00Z'
+                    started_at: null
+                    finished_at: '2026-11-04T10:40:00Z'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/Throttled' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+    delete:
+      tags: [conversions]
+      operationId: deleteConversion
+      summary: Forget the job and its result
+      description: |
+        Stops the job if it is still queued or running, then forgets the job, its file, its result and its idempotency
+        key. Repeating the call is harmless: an unknown id is `404`, which the caller treats as "already forgotten".
+
+        Planned (not current): the core calls `DELETE` after it has applied a result and when a record is purged
+        with the id from the `202` body or from `Location` of a `200`.
+        A `200` without `Location` from an engine with `async: true` is a contract violation: the core applies the
+        result, logs the missing id and relies on `retention_sec`. The core never calls `DELETE` on an engine with
+        `async: false`. Today no core code calls it; the DC adapter has no cancel right and writes an `orphan_run`
+        journal event instead (`packages/workers/src/jobs/maintenance.ts:1880-1891`).
+      responses:
+        '204':
+          description: Forgotten
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/Throttled' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+
+  /v1/office-conversions:
+    post:
+      tags: [office]
+      operationId: createOfficeConversion
+      summary: Convert a legacy office file to OOXML
+      description: |
+        Takes a legacy office file and returns the equivalent OOXML file: DOC, RTF and ODT to DOCX; PPT and ODP to PPTX;
+        ODS to XLSX. The core's own reader then parses the OOXML, so one
+        hidden-content policy applies on every path. Offered only when `capabilities.office_formats` is not
+        empty; otherwise `404`.
+
+        Rules: synchronous only; the engine MUST NOT run macros or other active content, MUST NOT use the network, and
+        keeps nothing after it has answered.
+
+        **Preservation.** The core applies its hidden-content policy to the
+        OOXML it gets back. For every format listed in `capabilities.office_formats`, the conversion MUST keep what that
+        policy reads: hidden slides with their hidden state, speaker notes, hidden sheets with their state, hidden rows
+        and columns with their hidden state, footnotes and endnotes. It MUST NOT turn content the policy keeps out of
+        the text into body text: Word hidden text, Word comments, header and footer parts, document properties, cell
+        comments and notes, slide comments. Tracked changes MUST stay tracked or be accepted (insertions kept, deletions
+        removed). An engine that cannot meet this for a format MUST NOT list that format, unless it restores the missing
+        elements itself before answering. A lost policy element is a defect, never an allowed difference. Planned (not
+        current): the document-processing module lists a legacy format only after that format passes the corpus check.
+
+        The answer has no text or units, so a document failure is `422` with an engine failure code, and the
+        caller classifies it by the code's class: `encrypted`, `unsupported_format`, `malformed_document`,
+        `input_too_large`, `resource_limit` are final; `timeout` (over `deadline_sec`) is `rerun`. This differs from
+        `POST /v1/conversions`, where a `422` with a code that is not final is a step error.
+
+        Planned (not current): no code calls or implements this endpoint in this revision.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { $ref: '#/components/schemas/OfficeConversionRequest' }
+            encoding:
+              file:
+                contentType: >-
+                  application/msword, application/rtf, application/vnd.oasis.opendocument.text,
+                  application/vnd.ms-powerpoint, application/vnd.oasis.opendocument.presentation,
+                  application/vnd.oasis.opendocument.spreadsheet
+            examples:
+              doc_to_docx:
+                summary: A Word 97–2003 document
+                value:
+                  file: (binary, sent as 0194f2c3-9f30-7c6d-9e4f-7a8b9c0d1e2f.doc)
+                  format: doc
+                  deadline_sec: 120
+              ods_to_xlsx:
+                summary: An OpenDocument spreadsheet
+                value:
+                  file: (binary, sent as 0194f2c3-a041-7d7e-8f50-8b9c0d1e2f30.ods)
+                  format: ods
+      responses:
+        '200':
+          description: The OOXML file. `Content-Type` names the target format.
+          content:
+            application/vnd.openxmlformats-officedocument.wordprocessingml.document:
+              schema: { type: string, contentMediaType: application/vnd.openxmlformats-officedocument.wordprocessingml.document }
+            application/vnd.openxmlformats-officedocument.presentationml.presentation:
+              schema: { type: string, contentMediaType: application/vnd.openxmlformats-officedocument.presentationml.presentation }
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema: { type: string, contentMediaType: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: The engine does not offer office conversions (`capabilities.office_formats` is empty or absent)
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+              examples:
+                not_offered:
+                  value: { type: about:blank, title: Office conversions are not offered, status: 404, code: not_found }
+        '413': { $ref: '#/components/responses/TooLarge' }
+        '422':
+          description: The file could not be converted. The failure code determines its class.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+              examples:
+                encrypted:
+                  value: { type: about:blank, title: The file is encrypted, status: 422, code: encrypted, class: terminal }
+                timeout:
+                  value: { type: about:blank, title: Conversion did not finish in time, status: 422, code: timeout, class: rerun }
+        '429': { $ref: '#/components/responses/Throttled' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+
+components:
+  securitySchemes:
+    EngineToken:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque token
+      description: |
+        A token that the administrator sets in the panel and that the core stores as a secret (planned setting
+        `documents.http_token`). Engines compare it in constant time and never log it. A missing or wrong token
+        is `401`; a valid token without the right to an operation is `403`. Both mean `config` to the core.
+
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: |
+        Deterministic key of this submission. The core's key is the first 32 lower-case hex characters of SHA-256 over
+        a base derived from the record and the generation or action counter, plus the step. It never includes the attempt number.
+        Engines accept any value matching the pattern.
+      schema: { type: string, pattern: '^[A-Za-z0-9_.:-]{16,128}$' }
+      example: 3f2a9c7e1b0d4e5f8a6b2c1d0e9f8a7b
+    ConversionId:
+      name: id
+      in: path
+      required: true
+      description: |
+        Job id: the `id` of a `202` body, or the last path segment of `Location` on a `200` from an engine with
+        `async: true`
+      schema: { $ref: '#/components/schemas/ConversionId' }
+
+  headers:
+    RetryAfter:
+      description: |
+        Seconds to wait before the next request. Engines send an integer number of seconds. The core also accepts an
+        HTTP date and caps the value at one day (current DC adapter: `packages/shared/src/converter.ts:168-174`).
+      schema: { type: integer, minimum: 0, maximum: 86400 }
+    Location:
+      description: |
+        Path of the job, `/v1/conversions/{id}`: on `202`, and on `200` from an engine with `async: true` (REQUIRED
+        there). The core takes the job id for `GET` and `DELETE` from it.
+      schema: { type: string, pattern: '^/v1/conversions/[A-Za-z0-9_-]{1,128}$' }
+      example: /v1/conversions/cj_01JBX4Q9M2V7R8T6Y5W4E3D2C1
+
+  responses:
+    BadRequest:
+      description: |
+        The request does not match this contract (missing field, unknown recognition policy, policy not offered, bad
+        language list). The core treats it as a step error plus mismatch: it means the core and the engine disagree on
+        the contract.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+          examples:
+            ocr_not_offered:
+              value: { type: about:blank, title: Recognition policy not offered, status: 400, code: invalid_request, detail: "ocr=model is not offered; capabilities.ocr.mode is local" }
+    Unauthorized:
+      description: Token missing or wrong. `config` to the core.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+          examples:
+            unauthorized:
+              value: { type: about:blank, title: Token missing or wrong, status: 401, code: unauthorized }
+    Forbidden:
+      description: The token is valid but not allowed to call this operation. `config` to the core.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+          examples:
+            forbidden:
+              value: { type: about:blank, title: Operation not allowed for this token, status: 403, code: forbidden }
+    NotFound:
+      description: |
+        Unknown job id: never created, forgotten after `DELETE`, or expired. On `GET` the core treats it as loss of the
+        job; on `DELETE` as "already forgotten".
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+          examples:
+            not_found:
+              value: { type: about:blank, title: Unknown conversion, status: 404, code: not_found }
+    IdempotencyConflict:
+      description: The key was already used with a different request. The core treats it as loss of the job.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+          examples:
+            idempotency_conflict:
+              value: { type: about:blank, title: Key used with a different request, status: 409, code: idempotency_conflict }
+    TooLarge:
+      description: The file is larger than `capabilities.limits.max_bytes`. Final, too large.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+          examples:
+            input_too_large:
+              value: { type: about:blank, title: File larger than the engine limit, status: 413, code: input_too_large, class: terminal }
+    FileRejected:
+      description: |
+        The engine rejects the file itself before converting it. Engines speaking this contract use only the eight final
+        engine failure codes here (`encrypted`, `unsupported_format`,
+        `malformed_document`, `malformed_pdf`, `no_pages`, `input_too_large`, `too_many_pages`, `resource_limit`): the
+        core fails the record at once. A `422` with any other code, or without a code, is a step error plus mismatch.
+        An engine MAY instead accept the file and report the same code as a result with `status: failed`; the core
+        treats both the same.
+
+        Current DC adapter: on a `422`, DC's file rejection codes are final (`packages/shared/src/converter.ts:304-307`,
+        `packages/shared/src/converter.ts:612-617`): the eight codes above plus six DC-only codes for password
+        protection, a wrong format or quarantine. A size code
+        (`packages/shared/src/converter.ts:309`) fails as too large (`packages/shared/src/converter.ts:614-615`); any
+        other code is a step error plus mismatch (`packages/shared/src/converter.ts:612-613`).
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+          examples:
+            encrypted:
+              value: { type: about:blank, title: The file is encrypted, status: 422, code: encrypted, class: terminal }
+            unsupported_format:
+              value: { type: about:blank, title: Format not readable by this engine, status: 422, code: unsupported_format, class: terminal }
+    Throttled:
+      description: |
+        The engine is at capacity. The core waits `Retry-After` (clamped to 15 s–15 min; 60 s when absent) without
+        spending an attempt and without touching the breaker (current: `packages/shared/src/converter-gate.ts:396`).
+      headers:
+        Retry-After: { $ref: '#/components/headers/RetryAfter' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+          examples:
+            busy:
+              value: { type: about:blank, title: Engine at capacity, status: 429, code: busy, retry_after: 120 }
+    Unavailable:
+      description: |
+        The engine cannot serve requests now. The core asks `GET /v1/health`: not OK opens the breaker
+        (`unavailable`). An OK probe makes it a document error with its own wait.
+      headers:
+        Retry-After: { $ref: '#/components/headers/RetryAfter' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+          examples:
+            unavailable:
+              value: { type: about:blank, title: Engine unavailable, status: 503, code: unavailable, retry_after: 30 }
+    InternalError:
+      description: An engine defect. The core treats any `5xx` other than `502`, `503` and `504` as a step error plus mismatch.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+          examples:
+            internal:
+              value: { type: about:blank, title: Internal error, status: 500, code: internal }
+
+  schemas:
+    DocumentFormat:
+      type: string
+      description: |
+        Formats a document engine may accept. The same list as the core's document formats
+        (`packages/shared/src/document-formats.ts:39`); MIME types as in `packages/shared/src/document-formats.ts:52-64`.
+      enum: [pdf, docx, doc, odt, rtf, pptx, ppt, odp, xlsx, ods, csv]
+    LegacyOfficeFormat:
+      type: string
+      description: Formats that `POST /v1/office-conversions` turns into OOXML
+      enum: [doc, ppt, rtf, odt, ods, odp]
+    ContentLocale:
+      type: string
+      description: Language of the dialect's marker strings listed under Markdown dialect
+      enum: [en, ru]
+    OcrPolicy:
+      type: string
+      description: |
+        Recognition policy for this conversion: `off` (do not recognise), `local` (a recogniser inside the engine),
+        `model` (a recognition model). With the planned recognition set, any
+        recognised unit makes extraction `partial` in the core.
+      enum: ['off', local, model]
+    OcrLanguages:
+      type: string
+      description: |
+        Explicit recognition languages joined with `+`, as three-letter codes with an optional script suffix (for
+        example `rus+eng`, `chi_sim`). Automatic language choice is not allowed.
+      pattern: '^[a-z]{3}(?:_[a-z]{2,8})?(?:\+[a-z]{3}(?:_[a-z]{2,8})?){0,7}$'
+    ConversionId:
+      type: string
+      description: Opaque job id chosen by the engine
+      pattern: '^[A-Za-z0-9_-]{1,128}$'
+
+    Capabilities:
+      type: object
+      additionalProperties: false
+      required: [contract_version, release, formats, ocr, limits, async]
+      properties:
+        contract_version:
+          type: string
+          description: Version of this contract that the engine implements, for example `0.1.0`
+          pattern: '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$'
+        release:
+          type: [string, 'null']
+          description: Engine build string. The core will store it with each conversion.
+          maxLength: 200
+        formats:
+          type: array
+          description: Formats accepted by `POST /v1/conversions`
+          minItems: 1
+          uniqueItems: true
+          items: { $ref: '#/components/schemas/DocumentFormat' }
+        office_formats:
+          type: array
+          description: |
+            Formats accepted by `POST /v1/office-conversions`. Absent or empty means the endpoint is not offered.
+            Listing a format promises the preservation rules of `POST /v1/office-conversions` for it.
+          uniqueItems: true
+          items: { $ref: '#/components/schemas/LegacyOfficeFormat' }
+        ocr:
+          type: object
+          additionalProperties: false
+          required: [mode, languages]
+          properties:
+            mode:
+              type: string
+              description: |
+                Recognition the engine offers: `none`, `local` or `model`. The core sends `ocr` = `off` or this mode.
+              enum: [none, local, model]
+            languages:
+              type: array
+              description: Language codes the recogniser can use, each usable in `ocr_languages`. Empty when `mode` is `none`.
+              uniqueItems: true
+              items: { type: string, pattern: '^[a-z]{3}(?:_[a-z]{2,8})?$' }
+          if: { properties: { mode: { const: none } } }
+          then: { properties: { languages: { maxItems: 0 } } }
+        limits:
+          type: object
+          additionalProperties: false
+          required: [max_bytes, max_pages, max_deadline_sec]
+          properties:
+            max_bytes:
+              type: integer
+              description: |
+                Largest file the engine accepts, in bytes. The core's own intake limit is 20 MiB by default
+                (`limits.upload_max_bytes`, `contracts/schema/04-seed.sql:166`).
+              minimum: 1
+            max_pages:
+              type: [integer, 'null']
+              description: Most pages or slides the engine converts; null — no own limit
+              minimum: 1
+            max_deadline_sec:
+              type: [integer, 'null']
+              description: Longest `deadline_sec` the engine honours; null — no own limit
+              minimum: 1
+        async:
+          type: boolean
+          description: |
+            Whether the engine may answer `202` with a job. An engine with `async: true` keeps a job for every accepted
+            request and names it on `200` too (`Location`); an engine with `async: false` keeps no job.
+        idempotency:
+          type: object
+          additionalProperties: false
+          required: [retention_sec]
+          properties:
+            retention_sec:
+              type: integer
+              description: |
+                How long the engine keeps an idempotency key, its job and its result after the job has finished, in
+                seconds, unless the core deletes the job earlier; unfinished jobs are always kept. REQUIRED when `async`
+                is true. A `GET` after that time is `404`, which the core treats as loss of the job. The minimum,
+                3600 s, covers the longest planned gap between two polls of a running job: a document-error wait of up
+                to 1800 s (`packages/shared/src/converter-gate.ts:392`), a poll interval of up to 360 s
+                (`packages/workers/src/conversion-rules.ts:52-56`) and a block wait of 5 min
+                (`packages/workers/src/jobs/convert.ts:439-440`). A pause has no time limit
+                imposed by the core. A job that expires during a pause is handled as loss of the
+                job and gets a new generation that counts toward the cycle's resubmission limit.
+              minimum: 3600
+      if: { properties: { async: { const: true } }, required: [async] }
+      then: { required: [idempotency] }
+
+    Health:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          type: string
+          description: '`ok` with HTTP 200; `unavailable` with HTTP 503'
+          enum: [ok, unavailable]
+
+    ConversionRequest:
+      type: object
+      description: |
+        Form fields of `POST /v1/conversions`. The core sends only the fields of the contract version that the engine
+        reports in `capabilities.contract_version`.
+      additionalProperties: false
+      required: [file, format, locale, ocr]
+      properties:
+        file:
+          type: string
+          contentMediaType: application/octet-stream
+          description: |
+            The file. Its part carries an opaque file name `<record id>.<extension>`; engines use at most the extension
+            and never log the name.
+        format: { $ref: '#/components/schemas/DocumentFormat' }
+        locale: { $ref: '#/components/schemas/ContentLocale' }
+        ocr: { $ref: '#/components/schemas/OcrPolicy' }
+        ocr_languages: { $ref: '#/components/schemas/OcrLanguages' }
+        sha256:
+          type: string
+          description: |
+            Hex SHA-256 of the file as the core stored it. Optional; when present, the engine SHOULD verify it
+            (mismatch: `400 invalid_request`) and MAY use it to compare repeats of one `Idempotency-Key`.
+          pattern: '^[0-9a-f]{64}$'
+        text_max_bytes:
+          type: integer
+          description: |
+            Ceiling of the Markdown in UTF-8 bytes; over it the result is `failed` with `resource_limit`. The core sends
+            its resolved text cap.
+          minimum: 1
+        max_pages:
+          type: integer
+          description: Most pages or slides to convert; over it the result is `failed` with `too_many_pages`
+          minimum: 1
+        deadline_sec:
+          type: integer
+          description: |
+            Time budget measured in test runs; over it the result or job is `failed` with `timeout`. It is the engine's run
+            budget, at most `capabilities.limits.max_deadline_sec`. The core keeps its own watchdog longer than this
+            budget. The core has a separate export-wait setting.
+          minimum: 1
+      allOf:
+        - if: { properties: { ocr: { enum: [local, model] } }, required: [ocr] }
+          then: { required: [ocr_languages] }
+
+    DocResult:
+      type: object
+      description: |
+        Result in model form. The answer carries neither `markdown` nor `units`. The core
+        renders `doc` with its shared renderer, which applies the hidden-content policy and the content locale, and
+        derives the units from the containers. `status`, `error`, `warnings` and `engine` mean the same as in
+        `NormalizedConversion`. For `status: failed`, `doc` is null and `error` carries the engine failure code. A null
+        `error` there means the engine gave no code, and the core uses `conversion_failed`.
+      additionalProperties: false
+      required: [status, doc, warnings, engine]
+      properties:
+        status: { $ref: './schemas/NormalizedConversion.json#/$defs/RunStatus' }
+        error:
+          type: [string, 'null']
+          description: Engine failure code. It is absent or null unless `status` is `failed`.
+        doc:
+          description: The document model; null when `status` is `failed`
+          oneOf:
+            - $ref: './schemas/DocModel.json'
+            - type: 'null'
+        warnings:
+          type: array
+          description: Warning codes for the conversion as a whole
+          items: { $ref: './schemas/ConversionUnit.json#/$defs/WarningCode' }
+        engine: { $ref: './schemas/NormalizedConversion.json#/$defs/Engine' }
+      allOf:
+        - if: { properties: { status: { const: failed } }, required: [status] }
+          then: { properties: { doc: { type: 'null' } } }
+          else: { properties: { error: { type: 'null' }, doc: { type: object } } }
+    MarkdownResult:
+      description: |
+        Result in markdown form as an engine sends it: `NormalizedConversion` (`./schemas/NormalizedConversion.json`)
+        without `details`. The adapter that called the engine adds its own details after receiving the answer.
+      $ref: './schemas/NormalizedConversion.json'
+      not: { required: [details] }
+    ConversionResult:
+      description: |
+        The result of one conversion: markdown form (`MarkdownResult`: `NormalizedConversion` without `details`) or
+        model form (`DocResult`). Exactly one form: `markdown` and `doc` never appear together. In the markdown form the
+        engine fills `pages` as the number of anchor lines. The core recomputes it from the record text.
+        `engine.id` is the engine's own short name; the core replaces it with the id of the adapter that called the
+        engine (`http`). Engines MUST NOT send `details` (`MarkdownResult`). It is not a member of this answer: the core
+        removes it like any undefined member before it validates (Members of answers) and never stores it. The `http`
+        adapter fills `details` only with its own fields, for example the job id from the `202` body or from `Location`
+        of a `200`. Engines report no format and no picture count:
+        the outcome rules take the engine format from the request `format` (the detected format), and the number of
+        pictures from the sum of `units[].images`, or in the model form from the figure blocks of each container.
+      oneOf:
+        - $ref: '#/components/schemas/MarkdownResult'
+        - $ref: '#/components/schemas/DocResult'
+
+    JobState:
+      type: string
+      description: Job lifecycle for an accepted conversion request
+      enum: [queued, running, completed, failed, cancelled]
+    ConversionJob:
+      type: object
+      additionalProperties: false
+      required: [id, state, created_at, started_at, finished_at]
+      properties:
+        id: { $ref: '#/components/schemas/ConversionId' }
+        state: { $ref: '#/components/schemas/JobState' }
+        created_at:
+          type: string
+          format: date-time
+          description: When the engine accepted the job
+        started_at:
+          type: [string, 'null']
+          format: date-time
+          description: When work on the job started; null while `queued`
+        finished_at:
+          type: [string, 'null']
+          format: date-time
+          description: When the job reached `completed`, `failed` or `cancelled`
+        result:
+          $ref: '#/components/schemas/ConversionResult'
+        error:
+          $ref: '#/components/schemas/Problem'
+      allOf:
+        - if: { properties: { state: { const: completed } }, required: [state] }
+          then: { required: [result], not: { required: [error] } }
+        - if: { properties: { state: { const: failed } }, required: [state] }
+          then:
+            required: [error]
+            not: { required: [result] }
+            properties: { error: { required: [class], properties: { class: { const: rerun } } } }
+        - if: { properties: { state: { enum: [queued, running, cancelled] } }, required: [state] }
+          then: { not: { anyOf: [{ required: [result] }, { required: [error] }] } }
+        - if: { properties: { state: { enum: [queued, running] } }, required: [state] }
+          then: { properties: { finished_at: { type: 'null' } } }
+        - if: { properties: { state: { enum: [completed, failed, cancelled] } }, required: [state] }
+          then: { properties: { finished_at: { type: string } } }
+
+    OfficeConversionRequest:
+      type: object
+      description: Form fields of `POST /v1/office-conversions`
+      additionalProperties: false
+      required: [file, format]
+      properties:
+        file:
+          type: string
+          contentMediaType: application/octet-stream
+          description: The legacy office file, with an opaque file name
+        format: { $ref: '#/components/schemas/LegacyOfficeFormat' }
+        deadline_sec:
+          type: integer
+          description: Time budget; over it the answer is a problem with code `timeout`
+          minimum: 1
+
+    Problem:
+      type: object
+      description: |
+        Error body (`application/problem+json`, RFC 9457). The core reads `code`, the HTTP status and `Retry-After`
+        only. `title` and `detail` are for people at the engine side: they MUST NOT contain document text, file names
+        or file contents, and the core never logs or stores them. Further members are allowed and ignored.
+
+        `class` is present only with an engine failure code. On `413` and
+        `422` answers it is the class of the code in that registry: `terminal` (final), `rerun` (one new run later),
+        `job_error` (step error); a failure code outside the registry uses `job_error`. In the `error` of a `failed`
+        job it is always present and always `rerun`, whatever the code, because the core treats a failed job as class
+        `rerun`. The core derives the class from the registry, the HTTP status and the job state, never from this
+        member.
+
+        Codes used by this contract besides the engine failure codes are `invalid_request` (400), `unauthorized` (401),
+        `forbidden` (403), `not_found` (404), `idempotency_conflict` (409), `busy` (429), `internal` (500),
+        `unavailable` (503).
+      required: [code, title]
+      properties:
+        type:
+          type: string
+          format: uri-reference
+          description: Problem type URI; `about:blank` when the code says enough
+          default: about:blank
+        title:
+          type: string
+          maxLength: 200
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+        detail:
+          type: string
+          maxLength: 2000
+        instance:
+          type: string
+          format: uri-reference
+        code:
+          description: Machine code, snake_case
+          $ref: './schemas/ConversionUnit.json#/$defs/SnakeCode'
+        class:
+          type: string
+          description: Retry class of an engine failure code
+          enum: [terminal, rerun, job_error]
+        retry_after:
+          type: integer
+          description: Same value as the `Retry-After` header, in seconds
+          minimum: 0
+          maximum: 86400

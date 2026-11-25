@@ -1,0 +1,24 @@
+import { localized } from "../../i18n/runtime";
+import * as en from "./en";
+import * as ru from "./ru";
+
+export const bulkActorFormText = localized({ en: en.bulkActorFormText, ru: ru.bulkActorFormText });
+export const copyLinkText = localized({ en: en.copyLinkText, ru: ru.copyLinkText });
+export const correctBlockText = localized({ en: en.correctBlockText, ru: ru.correctBlockText });
+export const correctLinkText = localized({ en: en.correctLinkText, ru: ru.correctLinkText });
+export const correctionsBlockText = localized({ en: en.correctionsBlockText, ru: ru.correctionsBlockText });
+export const decisionsListText = localized({ en: en.decisionsListText, ru: ru.decisionsListText });
+export const edgeActionsText = localized({ en: en.edgeActionsText, ru: ru.edgeActionsText });
+export const edgeStatusBlockText = localized({ en: en.edgeStatusBlockText, ru: ru.edgeStatusBlockText });
+export const meetingProjectText = localized({ en: en.meetingProjectText, ru: ru.meetingProjectText });
+export const orgReviewBlockText = localized({ en: en.orgReviewBlockText, ru: ru.orgReviewBlockText });
+export const ownerActionsText = localized({ en: en.ownerActionsText, ru: ru.ownerActionsText });
+export const pageText = localized({ en: en.pageText, ru: ru.pageText });
+export const participantPickerText = localized({ en: en.participantPickerText, ru: ru.participantPickerText });
+export const participantsBlockText = localized({ en: en.participantsBlockText, ru: ru.participantsBlockText });
+export const recheckActionsText = localized({ en: en.recheckActionsText, ru: ru.recheckActionsText });
+export const recheckViewText = localized({ en: en.recheckViewText, ru: ru.recheckViewText });
+export const recordTrailText = localized({ en: en.recordTrailText, ru: ru.recordTrailText });
+export const showAnywayPanelText = localized({ en: en.showAnywayPanelText, ru: ru.showAnywayPanelText });
+export const transcriptJumpText = localized({ en: en.transcriptJumpText, ru: ru.transcriptJumpText });
+export const whoSeesText = localized({ en: en.whoSeesText, ru: ru.whoSeesText });

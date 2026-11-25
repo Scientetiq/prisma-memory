@@ -1,0 +1,185 @@
+{
+	admin off
+	auto_https disable_redirects
+	http_port 8080
+	https_port 8443
+	log default {
+		format filter {
+			wrap json
+			fields {
+				request>uri delete
+				request>headers>Referer delete
+				resp_headers>Location delete
+			}
+		}
+	}
+	servers {
+		protocols h1 h2
+		timeouts {
+			read_header 10s
+			idle 2m
+		}
+	}
+}
+
+(ambiguous_path) {
+	# Inspect the escaped path before matching the decoded path. Leave the query intact.
+	@ambiguous_path expression `{http.request.uri}.matches(r'(?i)^[^?]*(?://|[;\\]|%(?:2f|5c|3b|25)|/(?:\.|%2e){1,2}(?:/|\?|$))')`
+}
+
+(public_gateway) {
+	redir @plain_http https://{$MEMORY_PUBLIC_DOMAIN}{uri} 308
+	reverse_proxy gateway:8080
+}
+
+http://{$MEMORY_PUBLIC_DOMAIN}, https://{$MEMORY_PUBLIC_DOMAIN} {
+	import ambiguous_path
+	tls {$MEMORY_PROXY_TLS}
+	@plain_http protocol http
+	@tls protocol https
+
+	log {
+		format filter {
+			wrap json
+			fields {
+				request>uri delete
+				request>headers>Referer delete
+				resp_headers>Location delete
+			}
+		}
+	}
+	map {http.request.uri.path} {access_log_path} {
+		~(?i)^/api/v1/originals/ /api/v1/originals/[redacted]
+		~(?i)^/api/v1/uploads/ /api/v1/uploads/[redacted]
+		default {http.request.uri.path}
+	}
+
+	@mcp {
+		expression `{http.request.uri.path} == '/mcp'`
+	}
+	@protected_resource {
+		expression `{http.request.uri.path} == '/.well-known/oauth-protected-resource'`
+		method GET HEAD OPTIONS
+	}
+	@protected_resource_mcp {
+		expression `{http.request.uri.path} == '/.well-known/oauth-protected-resource/mcp'`
+		method GET HEAD OPTIONS
+	}
+	@authorization_server {
+		expression `{http.request.uri.path}.startsWith('/.well-known/oauth-authorization-server')`
+		method GET HEAD OPTIONS
+	}
+	@openid_configuration {
+		expression `{http.request.uri.path}.startsWith('/.well-known/openid-configuration')`
+		method GET HEAD OPTIONS
+	}
+	@oauth_authorize {
+		expression `{http.request.uri.path} == '/oauth/authorize'`
+		method GET HEAD
+	}
+	@oauth_continue {
+		expression `{http.request.uri.path} == '/oauth/authorize/continue'`
+		method GET
+	}
+	@oauth_token {
+		expression `{http.request.uri.path} == '/oauth/token'`
+		method POST OPTIONS
+	}
+	@oauth_revoke {
+		expression `{http.request.uri.path} == '/oauth/revoke'`
+		method POST OPTIONS
+	}
+	@oauth_register {
+		expression `{http.request.uri.path} == '/oauth/register'`
+		method POST OPTIONS
+	}
+	@skills {
+		expression `{http.request.uri.path}.startsWith('/api/v1/skill/')`
+		method GET HEAD OPTIONS
+	}
+	@originals {
+		expression `{http.request.uri.path}.startsWith('/api/v1/originals/')`
+		method GET HEAD OPTIONS
+	}
+	@uploads {
+		expression `{http.request.uri.path}.startsWith('/api/v1/uploads/')`
+		method PUT OPTIONS
+	}
+	@health {
+		expression `{http.request.uri.path} == '/api/v1/health'`
+		method GET HEAD
+	}
+
+	route {
+		header @tls Strict-Transport-Security "max-age=31536000" {
+			defer
+		}
+		header {
+			-Server
+			-Via
+		}
+
+		respond @ambiguous_path 404
+		log_append path {access_log_path}
+
+		handle @mcp {
+			import public_gateway
+		}
+		handle @protected_resource {
+			import public_gateway
+		}
+		handle @protected_resource_mcp {
+			import public_gateway
+		}
+		handle @authorization_server {
+			import public_gateway
+		}
+		handle @openid_configuration {
+			import public_gateway
+		}
+		handle @oauth_authorize {
+			import public_gateway
+		}
+		handle @oauth_continue {
+			import public_gateway
+		}
+		handle @oauth_token {
+			import public_gateway
+		}
+		handle @oauth_revoke {
+			import public_gateway
+		}
+		handle @oauth_register {
+			import public_gateway
+		}
+		handle @skills {
+			import public_gateway
+		}
+		handle @originals {
+			import public_gateway
+		}
+		handle @uploads {
+			import public_gateway
+		}
+		handle @health {
+			import public_gateway
+		}
+		respond 404
+	}
+}
+
+http://:8080, https://:8443 {
+	abort
+}
+
+# The workplace is off by default and requires an IdP.
+# https://{$MEMORY_WORKPLACE_DOMAIN} {
+# 	import ambiguous_path
+# 	@workplace_admin expression `{http.request.uri.path}.matches(r'(?i)^/(?:api/v1/)?admin')`
+# 	route {
+# 		respond @ambiguous_path 404
+# 		respond @workplace_admin 404
+# 		import workplace_idp_routes
+# 		respond 404
+# 	}
+# }

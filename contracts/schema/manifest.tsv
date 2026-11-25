@@ -1,0 +1,39 @@
+# Schema manifest: the order in which the files of this folder are applied to the core databases.
+# Rows are applied one by one, top to bottom. A new .sql file in this folder needs a row here.
+#
+# Columns, separated by one tab. No field is empty: "-" stands for "none" (a shell `read` with a tab separator would
+# merge two tabs and shift the columns).
+#   db       cluster (roles, run in the `postgres` database) | memory_control | memory_open | memory_closed | memory_audit
+#   file     a file of this folder
+#   phase    fresh  — creates the base objects of a database; applied once, in one transaction, only while its marker
+#                     object does not exist yet. A fresh file never runs on a database that already has data.
+#            always — re-runnable on a database with data; applied on every run (install and upgrade).
+#   marker   fresh rows: role:<name> or table:<name>, an object the file creates; always rows: -
+#   vars     psql variables passed with -v, comma-separated: name=value is fixed, a bare name is supplied by the executor
+#            (instance — the instance id, instance_name — its display name); - = none
+#   profile  - = every installation; otherwise the name of the only install profile that applies the row
+#
+# Order: rows are applied strictly top to bottom, also across databases. Rows of the cluster come first. Roles belong
+# to the whole cluster: the memory_control rows before the seed create roles (09-external-access.sql) that rows of
+# other databases grant to (11-edge-export-records.sql, 13-edge-audit.sql), so a row whose file creates a role comes
+# before every row of another database. Inside a database its fresh rows come before its always rows.
+db	file	phase	marker	vars	profile
+cluster	00-roles.sql	fresh	role:memory_gateway	-	-
+memory_control	01-control.sql	fresh	table:instances	-	-
+memory_control	05-access-model.sql	always	-	-	-
+memory_control	09-external-access.sql	always	-	-	-
+memory_control	10-edge-export-control.sql	always	-	-	-
+memory_control	12-admin-plane.sql	always	-	-	-
+memory_control	17-basic-tails.sql	always	-	-	-
+memory_open	02-records.sql	fresh	table:records	-	-
+memory_closed	02-records.sql	fresh	table:records	-	-
+memory_audit	03-audit.sql	fresh	table:audit_events	-	-
+memory_control	04-seed.sql	always	-	instance,instance_name	-
+memory_control	06-embedder-platform.sql	always	-	target=control	-
+memory_open	06-embedder-platform.sql	always	-	target=records	-
+memory_closed	06-embedder-platform.sql	always	-	target=records	-
+memory_open	07-records-extras.sql	always	-	-	-
+memory_closed	07-records-extras.sql	always	-	-	-
+memory_open	11-edge-export-records.sql	always	-	-	-
+memory_audit	08-audit-extras.sql	always	-	-	-
+memory_audit	13-edge-audit.sql	always	-	-	-

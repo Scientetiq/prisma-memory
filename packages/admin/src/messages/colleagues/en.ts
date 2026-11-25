@@ -1,0 +1,15 @@
+export const colleagues = {
+  colleagues: "Colleagues",
+  findAColleagueByNameOrDepartment: "Find a colleague by name or department and open records involving them.",
+  nameOrDepartment: "Name or department",
+  forExampleSmith: "For example: Smith",
+  theColleagueDirectoryIsUnavailableToYou: "The colleague directory is unavailable to you: only company colleagues can see it.",
+  noColleagueCardsYetTheyAppearWhen: "No colleague cards yet: they appear when an administrator uploads the org table.",
+  noCardsOnThisPageTheyAre: "No cards on this page — they are further down the list.",
+  noOneFoundForCheckTheSpelling: (value0: unknown): string => `No one found for “${value0}”. Check the spelling or search by surname or department.`,
+  showingTheFirstRefineYourSearchTo: (value0: unknown): string => `Showing the first ${value0} — refine your search to find the right person.`,
+  colleagueCardsAreInColleaguesSearchBy: "Colleague cards are in “Colleagues”: search by name and department there.",
+  recordsInvolving: "Records involving",
+  colleague: "colleague",
+  unnamed: "Unnamed",
+};

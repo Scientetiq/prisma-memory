@@ -1,0 +1,85 @@
+.skip-link { position: absolute; left: 12px; top: -60px; z-index: 1000; padding: 10px 14px; border-radius: var(--r-s); background: var(--text); color: #fff; font-size: 14px; font-weight: 600; }
+.skip-link:focus, .skip-link:focus-visible { top: 12px; }
+.main:focus { outline: none; }
+
+.hint a, .field-hint a, .muted a, .setting-desc a, .sec .hint a, .explain a { color: var(--blue-ink); text-decoration: underline; text-underline-offset: 2px; }
+.notice .hint a { color: inherit; }
+
+.tabs a .cnt.ok { background: var(--green-soft); color: var(--green-ink); }
+.tabs a .cnt.muted { background: var(--gray-soft); color: var(--text-2); }
+.tabs a .cnt.neutral { background: var(--blue-soft); color: var(--blue-ink); }
+.tabs a .cnt.danger { background: var(--red-soft); color: var(--red-ink); }
+
+.setting .setting-label { display: block; font-size: 14px; font-weight: 600; color: var(--text); margin: 0; }
+.setting .setting-key { font-family: var(--mono); font-size: 11.5px; font-weight: 400; color: var(--text-2); }
+.setting.readonly .setting-value { font-size: 13.5px; overflow-wrap: anywhere; }
+.setting:target { background: var(--blue-soft); box-shadow: inset 3px 0 0 var(--blue-ink); margin: 0 -12px; padding-left: 12px; padding-right: 12px; }
+.warn-text { color: var(--amber-ink) !important; }
+.settings-search { display: flex; flex-direction: column; gap: 5px; margin: 0 0 18px; max-width: 640px; }
+.settings-search input[type="search"] { width: 100%; padding: 8px 10px; border: 1px solid var(--line-int); border-radius: var(--r-s); font: inherit; font-size: 14px; background: var(--bg); }
+.settings-found { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; border: 1px solid var(--line-soft); border-radius: var(--r-s); }
+.settings-found li { padding: 7px 10px; font-size: 13.5px; overflow-wrap: anywhere; }
+.settings-found li + li { border-top: 1px solid var(--line-soft); }
+.settings-found a { color: var(--blue-ink); font-weight: 600; }
+
+.hint-details, .how-details { margin: 8px 0 12px; font-size: 13px; color: var(--text-2); max-width: 90ch; }
+.hint-details > *:not(summary), .how-details > *:not(summary) { margin: 6px 0 0; }
+.how-details ol, .how-details ul, .hint-details ul { padding-left: 20px; }
+.action-with-note { display: flex; flex-direction: column; gap: 4px; }
+.action-with-note > .hint { margin: 0; }
+
+.view-as-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.view-as-bar .btn { white-space: nowrap; }
+
+.health.compact { display: block; padding: 6px 12px; }
+.health.compact > summary { list-style: none; color: inherit; font-size: 13px; cursor: pointer; }
+.health.compact > summary::-webkit-details-marker { display: none; }
+.health.compact > summary .more-word { text-decoration: underline; text-underline-offset: 2px; }
+.health.compact[open] > summary .more { display: none; }
+.health.compact .explain, .health.compact .checks, .health.compact .meta { margin: 6px 0 0; }
+.health.compact .checks { display: block; padding-left: 20px; }
+
+.switch { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--r-m); margin: 14px 0 6px; cursor: pointer; font-size: 14px; font-weight: 600; }
+.switch input { appearance: none; -webkit-appearance: none; flex: none; position: relative; width: 44px; height: 26px; margin: 0; border-radius: 100px; background: var(--line-int); cursor: pointer; transition: background 120ms; }
+.switch input::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: transform 120ms; }
+.switch input:checked { background: var(--green); }
+.switch input:checked::after { transform: translateX(18px); }
+.switch input:disabled { opacity: .5; }
+.switch .switch-sub { display: block; font-size: 12.5px; font-weight: 400; color: var(--text-2); }
+.form label.switch { display: flex; font-weight: 600; }
+
+.field-example { font-size: 12px; color: var(--text-2); }
+.field-example .code { font-size: 11.5px; }
+.step-title { display: flex; align-items: baseline; gap: 8px; }
+.step-num { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--text); color: #fff; font-size: 12px; font-weight: 600; }
+.copy-pair { display: grid; grid-template-columns: minmax(120px, max-content) minmax(0, 1fr); gap: 6px 12px; align-items: center; margin: 8px 0; }
+.form-head { font-size: 14px; font-weight: 600; margin: 18px 0 6px; }
+.form-head:first-child { margin-top: 0; }
+
+.keys-old { margin-top: 10px; }
+.keys-old > summary { font-size: 13px; }
+.danger-zone { border: 1px solid var(--red-soft); border-radius: var(--r-m); padding: 12px 14px; }
+.danger-zone .form-row { align-items: flex-start; }
+.custody-forms .form-inline { flex-wrap: wrap; row-gap: 6px; }
+.custody-forms .form-inline-actions { flex-shrink: 0; }
+.custody-forms .form-inline-actions .btn { white-space: nowrap; }
+.svc-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 0 0 6px; }
+
+@media (max-width: 800px) {
+  .btn, .mobile-bar .burger, .tabs a, .nav a { min-height: 44px; }
+  .mobile-bar .burger { width: 44px; height: 44px; }
+  .btn.icon-only { min-width: 44px; justify-content: center; }
+  .nav a { padding-top: 10px; padding-bottom: 10px; }
+  .tabs a { display: inline-flex; align-items: center; }
+  .form input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]), .form select,
+  .field input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), .field select,
+  .setting-editor input:not([type="checkbox"]), .setting-editor select, .filter-form input, .filter-form select { min-height: 44px; }
+  .check input { width: 22px; height: 22px; }
+  .board.cards-mobile, .board.cards-mobile tbody { display: block; width: 100%; min-width: 0; }
+  .board.cards-mobile thead { display: none; }
+  .board.cards-mobile tr { display: block; border-bottom: 1px solid var(--line); padding: 8px 0; }
+  .board.cards-mobile td { display: block; width: 100%; border: 0; padding: 4px 12px; white-space: normal; overflow-wrap: anywhere; }
+  .board.cards-mobile td[data-label]::before { content: attr(data-label); display: block; color: var(--text-2); font-size: 11px; margin-bottom: 2px; }
+  .copy-pair { grid-template-columns: minmax(0, 1fr); }
+  .setting:target { margin: 0; }
+}

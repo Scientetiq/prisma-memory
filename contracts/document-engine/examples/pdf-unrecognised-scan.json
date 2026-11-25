@@ -1,0 +1,80 @@
+{
+  "title": "Unrecognised scan page",
+  "description": "One scanned page and no recogniser: the engine reports `ocr_unavailable` with `ocr_not_configured` and keeps only an uncaptioned figure marker for the picture. The text is not empty, but the marker is not source text: the unit has chars 0, so extraction is unavailable. The file is withheld from agents with `ocr`, `images` and `no_text`. `ocr_not_configured` causes no rerun.",
+  "content_locale": "en",
+  "rule_status": "current",
+  "conversion": {
+    "status": "ready",
+    "markdown": "<!-- page: 1 -->\n\n[figure]\n",
+    "pages": 1,
+    "units": [
+      {
+        "kind": "page",
+        "number": 1,
+        "method": "ocr_unavailable",
+        "chars": 0,
+        "images": 1,
+        "warnings": [
+          "ocr_not_configured"
+        ]
+      }
+    ],
+    "warnings": [],
+    "engine": {
+      "id": "builtin",
+      "release": "0.1.0"
+    }
+  },
+  "input": {
+    "status": "ready",
+    "error": null,
+    "text": "<!-- page: 1 -->\n\n[figure]\n",
+    "units": [
+      {
+        "kind": "page",
+        "number": 1,
+        "method": "ocr_unavailable",
+        "chars": 0,
+        "images": 1,
+        "warnings": [
+          "ocr_not_configured"
+        ]
+      }
+    ],
+    "warnings": [],
+    "images_found": 1,
+    "engine_format": "pdf",
+    "detected_format": "pdf",
+    "source_flags": [
+      "pdf_images"
+    ],
+    "engine": {
+      "id": "builtin",
+      "release": "0.1.0"
+    }
+  },
+  "expected": {
+    "status": "ready",
+    "text": "<!-- page: 1 -->\n\n[figure]\n",
+    "pages": 1,
+    "extraction": "unavailable",
+    "agent_file": false,
+    "agent_file_why": [
+      "ocr",
+      "images",
+      "no_text"
+    ],
+    "warning_codes": [
+      "ocr_not_configured"
+    ],
+    "ocr_units": 1,
+    "ocr_rerun": false,
+    "error_code": null,
+    "error_class": null,
+    "engine_format": "pdf",
+    "engine": {
+      "id": "builtin",
+      "release": "0.1.0"
+    }
+  }
+}

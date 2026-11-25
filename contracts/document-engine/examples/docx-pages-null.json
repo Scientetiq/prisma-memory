@@ -1,0 +1,70 @@
+{
+  "title": "DOCX without pages",
+  "description": "A word-processing file has no fixed page model: one unit of kind `file` with number null, no page anchors, and pages is null. No anchors are invented.",
+  "content_locale": "en",
+  "rule_status": "current",
+  "conversion": {
+    "status": "ready",
+    "markdown": "# Supply terms\n\nThe supplier delivers the goods within 10 days.\n\n## Payment\n\nPayment is due within 30 days of delivery.\n",
+    "pages": null,
+    "units": [
+      {
+        "kind": "file",
+        "number": null,
+        "method": "ooxml",
+        "chars": 108,
+        "images": 0,
+        "warnings": []
+      }
+    ],
+    "warnings": [],
+    "engine": {
+      "id": "builtin",
+      "release": "0.1.0"
+    }
+  },
+  "input": {
+    "status": "ready",
+    "error": null,
+    "text": "# Supply terms\n\nThe supplier delivers the goods within 10 days.\n\n## Payment\n\nPayment is due within 30 days of delivery.\n",
+    "units": [
+      {
+        "kind": "file",
+        "number": null,
+        "method": "ooxml",
+        "chars": 108,
+        "images": 0,
+        "warnings": []
+      }
+    ],
+    "warnings": [],
+    "images_found": 0,
+    "engine_format": "docx",
+    "detected_format": "docx",
+    "source_flags": [],
+    "engine": {
+      "id": "builtin",
+      "release": "0.1.0"
+    }
+  },
+  "expected": {
+    "status": "ready",
+    "text": "# Supply terms\n\nThe supplier delivers the goods within 10 days.\n\n## Payment\n\nPayment is due within 30 days of delivery.\n",
+    "pages": null,
+    "extraction": "ready",
+    "agent_file": false,
+    "agent_file_why": [
+      "office"
+    ],
+    "warning_codes": [],
+    "ocr_units": 0,
+    "ocr_rerun": false,
+    "error_code": null,
+    "error_class": null,
+    "engine_format": "docx",
+    "engine": {
+      "id": "builtin",
+      "release": "0.1.0"
+    }
+  }
+}

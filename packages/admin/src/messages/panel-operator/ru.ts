@@ -1,0 +1,46 @@
+import type { Messages } from "../../i18n/core";
+import type * as en from "./en";
+
+export const ACTIONS_TEXT: Messages<typeof en.ACTIONS_TEXT> = {
+  noAdministratorLogin: "Нет логина администратора",
+  noChangesThisLinkIsAlreadyInPlace: "Изменений нет — связь уже такая",
+  linkRemovedNobodyIsIdentifiedBehindValue1ExtendedAccess: (value1: string | number): string => `Связь снята: за ${value1} никто не указан — расширенный доступ ко всей памяти выдать нельзя`,
+  value2OperatesValue1: (value1: string | number, value2: string | number): string => `Под ${value1} работает ${value2}`,
+  profileLinkedToTheCompanyDirectory: "Карточка связана с каталогом компании",
+  profileNotLinkedToTheDirectoryYetThisPerson: "Карточка пока не связана с каталогом: человек ещё не входил через AD или провайдера единого входа",
+  changeRecordedInTheAuditLog: "Смена записана в журнал аудита",
+  notSavedValue1: (value1: string | number): string => `Не сохранено: ${value1}`,
+  selectAPerson: "Выберите человека",
+  startTypingASurnameOrEmailAndSelectA: "начните набирать фамилию или почту и выберите человека из подсказок",
+};
+
+export const PAGE_TEXT: Messages<typeof en.PAGE_TEXT> = {
+  extendedHelp: "Уровень 5 — доступ ко всей памяти компании для расследований. Его подтверждает вышестоящий руководитель, и подтверждающий не может быть тем же человеком, что работает под учётной записью администратора.",
+  administratorIdentity: "Кто администратор",
+  administratorIdentity2: "Кто администратор",
+  operatorLead: "Локальный администратор — учётная запись панели, а не человек. Здесь указывается, кто из сотрудников под ней работает. Это нужно, чтобы выдавать расширенный доступ ко всей памяти (уровень 5): пока человек не указан, такой доступ выдать нельзя.",
+  whatIsLevel5: "Что такое уровень 5?",
+  administrators: "администраторов",
+  noActiveLocalAdministrators: "Действующих локальных администраторов нет.",
+  lastPanelSignInValue1: "Последний вход в панель — {value1}",
+  noPanelSignInsYet: "В панель ещё не входили",
+  unlinkedNotice: "Не указано, кто работает под <tag1>{value2}</tag1>: расширенный доступ ко всей памяти (уровень 5) выдать нельзя. Укажите себя ниже. Если вас нет в подсказках — карточки ещё нет: она появляется после первого входа в рабочее место (<tag4>настроить вход через каталог</tag4> или <tag5>единый вход</tag5>) или после <tag6>загрузки орг-таблицы</tag6>.",
+  person: "Человек",
+  department: "Подразделение",
+  status: "Состояние",
+  active: "действующий",
+  inactive: "неактивен",
+  fromTheCompanyDirectory: "из каталога компании",
+  notLinkedToTheDirectory: "без связи с каталогом",
+  level5CanBeGranted: "уровень 5 можно выдавать",
+  level5Unavailable: "уровень 5 недоступен",
+  thePersonOperatingThisAdministratorAccountIsInactiveDismissed: "Человек за администратором неактивен (уволен или деактивирован орг-таблицей): укажите действующего сотрудника.",
+  changePerson: "Сменить человека",
+  link: "Связать",
+  saving: "Сохранение…",
+  person2: "Человек",
+  surnameFirstNameOrEmail: "фамилия, имя или почта",
+  tag1PersonTag1Value2Tag3StartTypingASurname: "<tag1>Человек</tag1>{value2}<tag3>Начните набирать фамилию или почту, например person@example.com, и выберите человека из подсказок. Демо-персоны и неактивные — нельзя; один человек — одна учётная запись администратора.</tag3>",
+  unlink: "Снять связь",
+  unlinkConfirm: (administrator: string, person: string): string => `Снять связь ${administrator} с ${person}? Расширенный доступ ко всей памяти (уровень 5) станет недоступен.`,
+};

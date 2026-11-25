@@ -1,0 +1,25 @@
+{
+  "name": "@memory/mocks",
+  "version": "0.1.0",
+  "private": true,
+  "license": "LicenseRef-Prisma-Memory",
+  "type": "module",
+  "description": "A demo model gateway for the demo-models image",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "tsx --test test/*.test.ts",
+    "model-gateway": "tsx src/model-gateway.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/node": "2.1.0",
+    "@modelcontextprotocol/server": "2.3.0",
+    "fflate": "^0.8.3",
+    "smtp-server": "^3.21.7",
+    "tsx": "^4.20.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/smtp-server": "^3.5.13",
+    "typescript": "^5.9.0"
+  }
+}

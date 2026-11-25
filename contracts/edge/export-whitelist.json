@@ -1,0 +1,412 @@
+{
+  "format": "memory-edge-export-whitelist/1",
+  "$comment": [
+    "Allowlist of what goes to the edge: by copy table — the columns and the attributes of the source. Anything not listed here does not go to the edge. The source for the v_edge_* views (10, 11), for the exporter’s serializer (an extra key means the batch is refused and the event export_whitelist_violation) and for the contract checks.",
+    "columns: replica table columns (edge); from: source of each value, “database.table.column” (column exists in DDL 01, 02, 05) or “computed: …” (calculated by a view or exporter); attrs: allowed keys of the source jsonb attrs.",
+    "views — export views: the copy table they feed; their columns are only the columns of that table and service_columns (needed by the exporter, they do not go to the edge). control_views — gate and settings views: they do not go into the copy.",
+    "Never: class, audience, hidden_at, deleted_*, purge_after, source_hash, source_ref, processor, confirmed_by, unlisted attrs, CRM entities, record_entities.role except mentioned for projects, org_reviews with people, open_check."
+  ],
+  "x-stage": "1b",
+  "tables": {
+    "edge_people": {
+      "source": "memory_control.people",
+      "columns": [
+        "person_id",
+        "generation",
+        "display_name",
+        "active",
+        "external_access",
+        "login_lc",
+        "email",
+        "ad_ok_until"
+      ],
+      "from": {
+        "person_id": "memory_control.people.id",
+        "generation": "computed: edge_state.gen generation (memory_control), returned by edge_gate_claim",
+        "display_name": "memory_control.people.display_name",
+        "active": "memory_control.people.active",
+        "external_access": "computed: memory_control.external_access — enabled_at is set and disabled_at is empty",
+        "login_lc": "memory_control.people.login",
+        "email": "memory_control.people.login",
+        "ad_ok_until": "computed: memory_control.external_access.ad_checked_at + edge.ad_state_max_age_hours — v_people_ad_until view"
+      },
+      "attrs": [],
+      "$comment": "Authors and participants of what is published (name, active) ∪ those who enabled “External access”. login_lc (lower(login)) and email (the login is the company e-mail) — only for those who enabled access, otherwise null; also only with ad_ok (the directory sweep confirmed the account). ad_ok_until — until when the sweep is still valid (only for those who enabled access, from v_people_ad_until by person_id; no check — the start of the epoch, that is, expired). The exporter always sends the field for everyone with external_access; null for such a person — the edge treats it as expired; no field — an exporter without expiry support, the edge does not check the expiry."
+    },
+    "edge_spaces": {
+      "source": "memory_control.spaces",
+      "columns": [
+        "space_id",
+        "generation",
+        "slug",
+        "title",
+        "kind",
+        "description",
+        "readme"
+      ],
+      "from": {
+        "space_id": "memory_control.spaces.id",
+        "generation": "computed: edge_state.gen generation (memory_control), returned by edge_gate_claim",
+        "slug": "memory_control.spaces.slug",
+        "title": "memory_control.spaces.name",
+        "kind": "memory_control.spaces.kind",
+        "description": "memory_control.spaces.description",
+        "readme": "memory_control.spaces.readme"
+      },
+      "attrs": [],
+      "$comment": "Only spaces with a published record; neither archived nor demo."
+    },
+    "edge_projection": {
+      "source": "memory_control (permission projection, readableSpaces rule)",
+      "columns": [
+        "person_id",
+        "space_id",
+        "can_read",
+        "can_write_open",
+        "until"
+      ],
+      "from": {
+        "person_id": "memory_control.space_members.person_id",
+        "space_id": "memory_control.spaces.id",
+        "can_read": "computed: readableSpaces rule (gateway/src/access.ts), excluding archived spaces",
+        "can_write_open": "computed: always false for now (writing from outside comes at a later stage)",
+        "until": "memory_control.space_members.expires_at"
+      },
+      "attrs": [],
+      "$comment": "Only active people with “External access” enabled. Full replacement: begin → chunk → commit; narrowing: revoke person_projection with keep."
+    },
+    "edge_records": {
+      "source": "memory_open.records",
+      "columns": [
+        "id",
+        "generation",
+        "type",
+        "event_kind",
+        "space_id",
+        "title",
+        "summary_line",
+        "occurred_at",
+        "ingested_at",
+        "updated_at",
+        "owner_id",
+        "origin",
+        "method",
+        "confirmed",
+        "parent_id",
+        "locator",
+        "version",
+        "is_current",
+        "domain_tags",
+        "path",
+        "org_review_state",
+        "attrs",
+        "agent_file"
+      ],
+      "from": {
+        "id": "memory_open.records.id",
+        "generation": "computed: edge_state.gen generation (memory_control), returned by edge_gate_claim",
+        "type": "memory_open.records.type",
+        "event_kind": "memory_open.records.event_kind",
+        "space_id": "memory_open.records.space_id",
+        "title": "memory_open.records.title",
+        "summary_line": "memory_open.records.summary_line",
+        "occurred_at": "memory_open.records.occurred_at",
+        "ingested_at": "memory_open.records.ingested_at",
+        "updated_at": "memory_open.records.updated_at",
+        "owner_id": "memory_open.records.owner_id",
+        "origin": "memory_open.records.origin",
+        "method": "memory_open.records.method",
+        "confirmed": "computed: memory_open.records.confirmed_at IS NOT NULL (without confirmed_by)",
+        "parent_id": "memory_open.records.parent_id",
+        "locator": "memory_open.records.locator",
+        "version": "memory_open.records.version",
+        "is_current": "memory_open.records.is_current",
+        "domain_tags": "memory_open.records.domain_tags",
+        "path": "computed: exporter — /spaces/<slug>/<type>/<yyyy>/<mm>/<id> (slug from memory_control.spaces)",
+        "org_review_state": "memory_control.org_reviews.state",
+        "attrs": "memory_open.records.attrs",
+        "agent_file": "computed: memory_open.records.attrs — original available to agents (conversion.agent_file, AGENT_FILE in gateway/src/originals.ts)"
+      },
+      "attrs": [
+        "rationale",
+        "alternatives",
+        "approved_by",
+        "outcome",
+        "actors",
+        "participants",
+        "due",
+        "pages",
+        "quote"
+      ],
+      "$comment": "attrs contains only listed keys (approved_by contains display names, not ids); conversion.agent_file is sent in a separate agent_file column. org_review_state is the “Company knowledge” state word without people; the exporter takes it from v_edge_gate_control.org_review_state."
+    },
+    "edge_record_content": {
+      "source": "memory_open.record_content",
+      "columns": [
+        "record_id",
+        "generation",
+        "markdown",
+        "pages",
+        "duration_sec",
+        "language"
+      ],
+      "from": {
+        "record_id": "memory_open.record_content.record_id",
+        "generation": "computed: edge_state.gen generation (memory_control), returned by edge_gate_claim",
+        "markdown": "memory_open.record_content.text",
+        "pages": "memory_open.record_content.pages",
+        "duration_sec": "memory_open.record_content.duration_sec",
+        "language": "memory_open.record_content.language"
+      },
+      "attrs": []
+    },
+    "edge_placements": {
+      "source": "memory_open.record_placements",
+      "columns": [
+        "record_id",
+        "space_id",
+        "generation"
+      ],
+      "from": {
+        "record_id": "memory_open.record_placements.record_id",
+        "space_id": "memory_open.record_placements.space_id",
+        "generation": "computed: edge_state.gen generation (memory_control), returned by edge_gate_claim"
+      },
+      "attrs": []
+    },
+    "edge_record_people": {
+      "source": "memory_open.record_people",
+      "columns": [
+        "record_id",
+        "person_id",
+        "generation"
+      ],
+      "from": {
+        "record_id": "memory_open.record_people.record_id",
+        "person_id": "memory_open.record_people.person_id",
+        "generation": "computed: edge_state.gen generation (memory_control), returned by edge_gate_claim"
+      },
+      "attrs": [],
+      "$comment": "No role: inner record_people has no role."
+    },
+    "edge_record_entities": {
+      "source": "memory_open.record_entities",
+      "columns": [
+        "record_id",
+        "entity_id",
+        "generation"
+      ],
+      "from": {
+        "record_id": "memory_open.record_entities.record_id",
+        "entity_id": "memory_open.record_entities.entity_id",
+        "generation": "computed: edge_state.gen generation (memory_control), returned by edge_gate_claim"
+      },
+      "attrs": [],
+      "$comment": "Only role = mentioned and only memory project entities (kind project, no CRM entities)."
+    },
+    "edge_chunks": {
+      "source": "memory_open.chunks",
+      "columns": [
+        "id",
+        "record_id",
+        "generation",
+        "ordinal",
+        "text",
+        "token_count",
+        "section_path",
+        "page_from",
+        "page_to",
+        "time_from_sec",
+        "time_to_sec",
+        "space_id",
+        "type",
+        "occurred_at"
+      ],
+      "from": {
+        "id": "memory_open.chunks.id",
+        "record_id": "memory_open.chunks.record_id",
+        "generation": "computed: edge_state.gen generation (memory_control), returned by edge_gate_claim",
+        "ordinal": "memory_open.chunks.ordinal",
+        "text": "memory_open.chunks.text",
+        "token_count": "memory_open.chunks.token_count",
+        "section_path": "memory_open.chunks.section_path",
+        "page_from": "memory_open.chunks.page_from",
+        "page_to": "memory_open.chunks.page_to",
+        "time_from_sec": "memory_open.chunks.time_from_sec",
+        "time_to_sec": "memory_open.chunks.time_to_sec",
+        "space_id": "memory_open.chunks.space_id",
+        "type": "memory_open.chunks.type",
+        "occurred_at": "memory_open.chunks.occurred_at"
+      },
+      "attrs": [],
+      "$comment": "tsv and raw_terms are built by the edge itself (tsv by trigger in its applied full-text configurations, raw_terms generated) and never travel over the network."
+    },
+    "edge_links": {
+      "source": "memory_control.record_links + memory_open.record_link_details",
+      "columns": [
+        "id",
+        "generation",
+        "src_id",
+        "dst_id",
+        "relation",
+        "status",
+        "src_quote",
+        "dst_quote",
+        "rationale"
+      ],
+      "from": {
+        "id": "memory_control.record_links.id",
+        "generation": "computed: edge_state.gen generation (memory_control), returned by edge_gate_claim",
+        "src_id": "memory_control.record_links.src_id",
+        "dst_id": "memory_control.record_links.dst_id",
+        "relation": "memory_control.record_links.relation",
+        "status": "memory_control.record_links.status",
+        "src_quote": "memory_open.record_link_details.src_quote",
+        "dst_quote": "memory_open.record_link_details.dst_quote",
+        "rationale": "memory_open.record_link_details.rationale"
+      },
+      "attrs": [],
+      "$comment": "status is limited to active and confirmed; detail_class = open; both ends passed the gate."
+    },
+    "edge_entities": {
+      "source": "memory_control.entities",
+      "columns": [
+        "entity_id",
+        "generation",
+        "kind",
+        "name",
+        "slug"
+      ],
+      "from": {
+        "entity_id": "memory_control.entities.id",
+        "generation": "computed: edge_state.gen generation (memory_control), returned by edge_gate_claim",
+        "kind": "memory_control.entities.kind",
+        "name": "memory_control.entities.display_name",
+        "slug": "memory_control.entities.external_id"
+      },
+      "attrs": [],
+      "$comment": "Only kind = project, external_system = memory (slug is external_id)."
+    },
+    "edge_originals": {
+      "source": "Open class original file storage",
+      "columns": [
+        "record_id",
+        "generation",
+        "mime",
+        "bytes",
+        "sha256",
+        "data"
+      ],
+      "from": {
+        "record_id": "memory_open.record_content.record_id",
+        "generation": "computed: edge_state.gen generation (memory_control), returned by edge_gate_claim",
+        "mime": "memory_open.record_content.original_mime",
+        "bytes": "memory_open.record_content.original_bytes",
+        "sha256": "computed: exporter — file SHA-256",
+        "data": "computed: file from the open bucket (key: record_content.original_key)"
+      },
+      "attrs": [],
+      "$comment": "Only when agent_file = true, without original_closed, at most edge.originals_max_mib."
+    }
+  },
+  "views": {
+    "v_edge_spaces": {
+      "db": "memory_control",
+      "table": "edge_spaces",
+      "service_columns": []
+    },
+    "v_people_min": {
+      "db": "memory_control",
+      "table": "edge_people",
+      "service_columns": []
+    },
+    "v_people_ad_until": {
+      "db": "memory_control",
+      "table": "edge_people",
+      "service_columns": []
+    },
+    "v_edge_projection": {
+      "db": "memory_control",
+      "table": "edge_projection",
+      "service_columns": []
+    },
+    "v_edge_links_control": {
+      "db": "memory_control",
+      "table": "edge_links",
+      "service_columns": []
+    },
+    "v_edge_entities_control": {
+      "db": "memory_control",
+      "table": "edge_entities",
+      "service_columns": []
+    },
+    "v_edge_trees": {
+      "db": "memory_open",
+      "table": "edge_records",
+      "service_columns": [
+        "original_ok"
+      ]
+    },
+    "v_edge_content": {
+      "db": "memory_open",
+      "table": "edge_record_content",
+      "service_columns": [
+        "original_key",
+        "original_mime",
+        "original_bytes"
+      ]
+    },
+    "v_edge_chunks": {
+      "db": "memory_open",
+      "table": "edge_chunks",
+      "service_columns": []
+    },
+    "v_edge_placements": {
+      "db": "memory_open",
+      "table": "edge_placements",
+      "service_columns": []
+    },
+    "v_edge_people": {
+      "db": "memory_open",
+      "table": "edge_record_people",
+      "service_columns": []
+    },
+    "v_edge_entity_refs": {
+      "db": "memory_open",
+      "table": "edge_record_entities",
+      "service_columns": []
+    },
+    "v_edge_link_details": {
+      "db": "memory_open",
+      "table": "edge_links",
+      "service_columns": []
+    }
+  },
+  "control_views": [
+    "v_edge_gate_control",
+    "v_edge_gate",
+    "v_edge_export_settings",
+    "v_edge_canary_hashes",
+    "v_edge_inner_settings",
+    "v_edge_canary_scan_hashes"
+  ],
+  "never": [
+    "class",
+    "audience",
+    "hidden_at",
+    "deleted_at",
+    "deleted_by",
+    "deleted",
+    "purge_after",
+    "deleted_batch",
+    "source_hash",
+    "source_ref",
+    "processor",
+    "confirmed_by",
+    "open_check",
+    "held_by",
+    "entered_by",
+    "decided_by",
+    "original_key"
+  ]
+}

@@ -1,0 +1,32 @@
+version: 1
+x-source: "Edge process route definitions"
+cookies:
+  ours: ["__Host-mlx", "__Host-mls", "__Host-mld"]
+processes:
+  edge-auth:
+    build_404_marker: { header: X-Edge-404, value: build }
+    routes:
+      - { methods: [GET], path: /.well-known/oauth-authorization-server, body: none, cookies: strip_all }
+      - { methods: [GET], path: /oauth/authorize, body: query, body_max: 4096, cookies: ["__Host-mlx", "__Host-mls", "__Host-mld"] }
+      - { methods: [POST], path: /oauth/login, body: form, body_max: 8192, cookies: ["__Host-mlx", "__Host-mls", "__Host-mld"] }
+      - { methods: [POST], path: /oauth/consent, body: form, body_max: 8192, cookies: ["__Host-mlx", "__Host-mls", "__Host-mld"] }
+      - { methods: [POST], path: /oauth/token, body: form, body_max: 8192, cookies: strip_all }
+      - { methods: [POST], path: /oauth/revoke, body: form, body_max: 8192, cookies: strip_all }
+      - { methods: [GET], path: /account, body: none, cookies: ["__Host-mlx", "__Host-mls", "__Host-mld"] }
+      - { methods: [POST], path: /account/login, body: form, body_max: 8192, cookies: ["__Host-mlx", "__Host-mls", "__Host-mld"] }
+      - { methods: [POST], path: /account/revoke, body: form, body_max: 8192, cookies: ["__Host-mlx", "__Host-mls", "__Host-mld"] }
+  edge-mcp:
+    build_404_marker: { header: X-Edge-404, value: build }
+    routes:
+      - { methods: [POST], path: /mcp, body: json, body_max: { c1: 1048576, c2: 4194304 }, cookies: strip_all }
+      - { methods: [GET, DELETE], path: /mcp, body: none, cookies: strip_all, respond: { status: 405, headers: { Allow: POST } } }
+      - { methods: [GET], path: /.well-known/oauth-protected-resource, body: none, cookies: strip_all }
+      - { methods: [GET], path: /.well-known/oauth-protected-resource/mcp, body: none, cookies: strip_all }
+      - { methods: [GET, HEAD], path: /api/v1/skill/prisma-memory/SKILL.md, body: none, cookies: strip_all }
+      - { methods: [GET, HEAD], path: /api/v1/skill/prisma-memory.zip, body: none, cookies: strip_all }
+      - { methods: [GET, HEAD], path: /api/v1/skill/prisma-memory/manifest.json, body: none, cookies: strip_all }
+      - { methods: [GET, HEAD], path: /api/v1/skill/prisma-memory/manifest.json.sig, body: none, cookies: strip_all }
+      - { methods: [GET, HEAD], path_regex: '^/api/v1/originals/[A-Za-z0-9_-]{1,1024}\.[A-Za-z0-9_-]{43}$', body: none, cookies: strip_all }
+proxy:
+  default: { status: 404, marker: true }
+  explicit_404: [/.well-known/openid-configuration, /api/v1/health]

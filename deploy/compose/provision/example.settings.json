@@ -1,0 +1,11 @@
+{
+  "format": "prisma-provision/1",
+  "$comment": "Example of a provisioning file. Each item is written only when an administrator never changed the key (its stored value is empty or equals the default); otherwise it is kept and listed with the reason. Keys of the protected group (network trust, sign-in, alert mail) go through the same checks as memory-admin recover set. Try it first: memory-admin provision apply example.settings.json --dry-run. Secrets (storage keys) are better passed on standard input (provision apply -) than kept in a file.",
+  "items": [
+    { "category": "storage", "key": "s3_endpoint", "value": "https://s3.example.com" },
+    { "category": "storage", "key": "s3_region", "value": "eu-central-1" },
+    { "category": "storage", "key": "bucket_open", "value": "memory-open" },
+    { "category": "storage", "key": "bucket_closed", "value": "memory-closed" },
+    { "category": "locale", "key": "timezone", "value": "Europe/Berlin" }
+  ]
+}

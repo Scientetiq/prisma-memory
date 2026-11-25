@@ -1,0 +1,13 @@
+{
+  "format": "memory-node-version/1",
+  "$comment": [
+    "Node.js version and base images of a release: one Node.js major for every image and build target.",
+    "Base images are pinned by digest and every Dockerfile writes exactly these FROM lines. A version change edits this file and every FROM line in one commit."
+  ],
+  "major": 22,
+  "esbuild_target": "node22",
+  "images": {
+    "runtime": "node:22-bookworm-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5",
+    "postgres": "pgvector/pgvector:pg16@sha256:ccc6e83d6e35e931dc7c5def2022729d5a6c370318d099181995567ff1fb4d6b"
+  }
+}

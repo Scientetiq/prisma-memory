@@ -1,0 +1,53 @@
+{
+  "title": "Failed run: encrypted PDF",
+  "description": "The engine cannot open a password-protected PDF and fails the run with `encrypted`. The class is terminal: the stage fails at once, with no retry. There is no text.",
+  "content_locale": "en",
+  "rule_status": "current",
+  "conversion": {
+    "status": "failed",
+    "error": "encrypted",
+    "markdown": null,
+    "pages": null,
+    "units": [],
+    "warnings": [],
+    "engine": {
+      "id": "builtin",
+      "release": "0.1.0"
+    }
+  },
+  "input": {
+    "status": "failed",
+    "error": "encrypted",
+    "text": null,
+    "units": [],
+    "warnings": [],
+    "images_found": 0,
+    "engine_format": "pdf",
+    "detected_format": "pdf",
+    "source_flags": [],
+    "engine": {
+      "id": "builtin",
+      "release": "0.1.0"
+    }
+  },
+  "expected": {
+    "status": "failed",
+    "text": "",
+    "pages": null,
+    "extraction": "unavailable",
+    "agent_file": false,
+    "agent_file_why": [
+      "no_text"
+    ],
+    "warning_codes": [],
+    "ocr_units": 0,
+    "ocr_rerun": false,
+    "error_code": "encrypted",
+    "error_class": "terminal",
+    "engine_format": "pdf",
+    "engine": {
+      "id": "builtin",
+      "release": "0.1.0"
+    }
+  }
+}

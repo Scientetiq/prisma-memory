@@ -1,0 +1,186 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://memory.internal/pipeline/schemas/summary-v2.json",
+  "title": "Output of the summary stage (summary-v2)",
+  "description": "A structured summary of a transcript; the markdown of the summary record is built by code from these fields.",
+  "type": "object",
+  "required": [
+    "headline",
+    "topics",
+    "decisions",
+    "actions",
+    "questions_risks",
+    "mentions",
+    "language"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "headline": {
+      "type": "string",
+      "minLength": 10,
+      "maxLength": 400,
+      "description": "The outcome of the meeting in 2–3 sentences"
+    },
+    "topics": {
+      "type": "array",
+      "maxItems": 12,
+      "items": {
+        "type": "object",
+        "required": [
+          "title",
+          "summary",
+          "time_from"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "time_from": {
+            "type": "string",
+            "pattern": "^\\d{1,3}:\\d{2}(:\\d{2})?$",
+            "description": "A time mark as in the transcript: mm:ss or h:mm:ss"
+          },
+          "time_to": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^\\d{1,3}:\\d{2}(:\\d{2})?$"
+          }
+        }
+      }
+    },
+    "decisions": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "required": [
+          "text",
+          "time_from"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "time_from": {
+            "type": "string",
+            "pattern": "^\\d{1,3}:\\d{2}(:\\d{2})?$",
+            "description": "A time mark as in the transcript: mm:ss or h:mm:ss"
+          }
+        }
+      }
+    },
+    "actions": {
+      "type": "array",
+      "maxItems": 30,
+      "items": {
+        "type": "object",
+        "required": [
+          "text",
+          "time_from"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "owner": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 60
+          },
+          "due": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 60
+          },
+          "time_from": {
+            "type": "string",
+            "pattern": "^\\d{1,3}:\\d{2}(:\\d{2})?$",
+            "description": "A time mark as in the transcript: mm:ss or h:mm:ss"
+          }
+        }
+      }
+    },
+    "questions_risks": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "required": [
+          "text",
+          "time_from"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "time_from": {
+            "type": "string",
+            "pattern": "^\\d{1,3}:\\d{2}(:\\d{2})?$",
+            "description": "A time mark as in the transcript: mm:ss or h:mm:ss"
+          }
+        }
+      }
+    },
+    "mentions": {
+      "type": "array",
+      "maxItems": 20,
+      "description": "Mentions of entities as written in the text; code links them to the registry",
+      "items": {
+        "type": "object",
+        "required": [
+          "text",
+          "kind"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "company",
+              "deal",
+              "person",
+              "project",
+              "document",
+              "other"
+            ]
+          }
+        }
+      }
+    },
+    "language": {
+      "type": "string",
+      "pattern": "^[a-z]{2}$",
+      "description": "Language of the source, ISO 639-1"
+    },
+    "notes": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 500
+    }
+  }
+}

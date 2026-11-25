@@ -1,0 +1,77 @@
+#!/bin/sh
+# memory-admin: the administrator's command line of a compose install, run on the server that hosts the install.
+#
+#   deploy/bin/memory-admin health
+#   deploy/bin/memory-admin <command> [arguments...]
+#
+# The command runs inside the running gateway container (docker compose exec gateway memory-admin ...). There it talks to
+# the gateway over the gateway's command-line unix socket (MEMORY_CLI_LISTEN): no key and no session are needed, so the
+# right to use it is the right to run docker on this server.
+#
+# Which install: the compose folder deploy/compose next to this script (the folder that holds the install's .env; a
+# symbolic link to the script, for example in /usr/local/bin, is followed to the script itself); MEMORY_COMPOSE_DIR names
+# another folder. Compose reads the project name and the rest from that folder, as `docker compose`
+# run there would.
+# In a terminal the command gets a terminal too (questions without echo work); in a pipe or a script it runs without one.
+#
+# Exit code: the command's own (0 done, 1 refused by the gateway, 2 wrong call, 3 socket not reachable); 3 as well when
+# there is no install in the folder, docker is missing or fails (its own message is shown), or the gateway is not running;
+# 127 when the gateway image has no memory-admin command.
+set -eu
+
+say() { printf 'memory-admin: %s\n' "$*" >&2; }
+
+# the script itself, not a link to it: the install is found next to the real file (at most 40 links, as the kernel allows)
+self="$0"
+n=0
+while [ -L "$self" ] && [ "$n" -lt 40 ] && link="$(readlink -- "$self" 2>/dev/null)"; do
+  case "$link" in
+    /*) self="$link" ;;
+    *) self="$(dirname "$self")/$link" ;;
+  esac
+  n=$((n + 1))
+done
+
+if [ -n "${MEMORY_COMPOSE_DIR:-}" ]; then
+  dir="$MEMORY_COMPOSE_DIR"
+else
+  dir="$(dirname "$self")/../compose"
+fi
+given="$dir"
+# CDPATH off and `--`: with CDPATH exported, cd would search it and print the folder (two lines in $dir); a relative
+# folder whose name starts with a dash is a folder, not an option
+if ! dir="$(CDPATH='' cd -- "$given" 2>/dev/null && pwd)" || [ ! -f "$dir/.env" ]; then
+  say "no compose install found in ${given} (no such folder, or it has no .env)."
+  say "Install first with deploy/compose/setup, or set MEMORY_COMPOSE_DIR to the folder of the install."
+  exit 3
+fi
+if ! command -v docker >/dev/null 2>&1; then
+  say "docker is not installed or not in PATH."
+  exit 3
+fi
+cd "$dir"
+
+# docker's own errors stay visible: a daemon that cannot be reached, no right to use it, or no compose plugin says nothing
+# about the gateway, so it is not reported as "not running"
+if ! running="$(docker compose ps --status running --quiet gateway)"; then
+  say "docker compose failed in ${dir} (its message is above), so it is not known whether the gateway is running."
+  say "Check that docker works for this user: cd ${dir} && docker compose ps"
+  exit 3
+fi
+if [ -z "$running" ]; then
+  say "the gateway is not running (compose install in ${dir})."
+  say "Start it with: cd ${dir} && docker compose up -d   (docker compose ps shows what is running)"
+  exit 3
+fi
+
+# a terminal on both ends: let compose allocate one; otherwise -T keeps the output clean for pipes and scripts
+tty="-T"
+if [ -t 0 ] && [ -t 1 ]; then tty=""; fi
+
+rc=0
+# shellcheck disable=SC2086 # $tty is empty or one flag
+docker compose exec $tty gateway memory-admin "$@" || rc=$?
+if [ "$rc" -eq 127 ]; then
+  say "the gateway image has no memory-admin command: rebuild the images of this install."
+fi
+exit "$rc"

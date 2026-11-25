@@ -1,0 +1,27 @@
+{
+  "name": "@memory/admin",
+  "version": "0.1.0",
+  "private": true,
+  "license": "LicenseRef-Prisma-Memory",
+  "type": "module",
+  "description": "Web UI of Prisma Memory (Next.js): the employee workspace and the admin panel",
+  "scripts": {
+    "typecheck": "node ./tools/i18n/client-manifest.cjs && tsc -p tsconfig.json",
+    "test": "vitest run",
+    "dev": "NODE_OPTIONS=--import=./client-peer.mjs NEXT_TELEMETRY_DISABLED=1 next dev -H 0.0.0.0 -p 3000",
+    "build": "NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 next build",
+    "start": "NODE_OPTIONS=--import=./client-peer.mjs NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 next start -H 0.0.0.0 -p 3000"
+  },
+  "dependencies": {
+    "next": "^16.4.5",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  }
+}

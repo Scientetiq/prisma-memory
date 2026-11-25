@@ -1,0 +1,424 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://memory.internal/document-engine/schemas/NormalizedConversion.json",
+  "title": "NormalizedConversion",
+  "description": "Result of one conversion, already in the Markdown dialect. `status` is the engine's run status, not extraction completeness. The core recomputes `pages` from `markdown` and uses its own value. An engine that returns a `DocModel` does not fill `markdown` itself: the core renders the model, and the rendered text becomes `markdown` here.",
+  "$comment": "When `status` is `ready` or `partial`, `markdown` is required and non-empty. When `status` is `failed`, `markdown` is ignored and `error` carries the failure code; `null` or an absent `error` means that the engine gave no code (the core then uses `conversion_failed`). When `status` is not `failed`, `error` is absent or `null`.",
+  "type": "object",
+  "required": ["status", "markdown", "pages", "units", "warnings", "engine"],
+  "additionalProperties": false,
+  "properties": {
+    "status": { "$ref": "#/$defs/RunStatus" },
+    "error": {
+      "description": "Engine failure code. Null or absent unless `status` is `failed`. Engines MUST report snake_case codes (`FailureCode`); the core turns any other text into `unknown`, so the field accepts any string.",
+      "type": ["string", "null"]
+    },
+    "markdown": {
+      "description": "Record text in the dialect. Required and non-empty when `status` is `ready` or `partial`; ignored when `failed`.",
+      "type": ["string", "null"]
+    },
+    "pages": {
+      "description": "Number of page-anchor lines in `markdown`, or `null` when there are none. Formats without a fixed page model (DOCX, DOC, ODT, RTF, XLSX, ODS, CSV, plain text) always give `null`.",
+      "type": ["integer", "null"],
+      "minimum": 1
+    },
+    "units": {
+      "description": "Source units. May be empty.",
+      "type": "array",
+      "items": { "$ref": "ConversionUnit.json" }
+    },
+    "warnings": {
+      "description": "Result-level warning codes. Unit warnings stay on the units.",
+      "type": "array",
+      "items": { "$ref": "ConversionUnit.json#/$defs/WarningCode" }
+    },
+    "engine": { "$ref": "#/$defs/Engine" },
+    "details": {
+      "description": "Adapter fields that go to `attrs.conversion` (for example engine job ids). MUST NOT contain document text, and MUST NOT reuse a key that the core writes to `attrs.conversion` itself. Set only by the adapter. Engines speaking the open HTTP contract MUST NOT send it: the HTTP answer schema `MarkdownResult` rejects it, and the core removes it before validation.",
+      "type": "object"
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "status": { "enum": ["ready", "partial"] } }, "required": ["status"] },
+      "then": {
+        "properties": {
+          "markdown": { "type": "string", "minLength": 1, "pattern": "\\S" },
+          "error": { "type": "null" }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "RunStatus": {
+      "description": "Engine run status: what the engine says about its own run. It decides failures and reruns. It is not extraction completeness.",
+      "enum": ["ready", "partial", "failed"]
+    },
+    "EngineId": {
+      "description": "Engine id: `builtin`, `http`, or the id that an installed adapter registers. On the open HTTP contract an engine sends its own short name here, and the core replaces it with the id of its adapter.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_-]{0,31}$"
+    },
+    "Engine": {
+      "description": "The engine that produced the result.",
+      "type": "object",
+      "required": ["id", "release"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/EngineId" },
+        "release": {
+          "description": "Engine build string, or `null` when the engine does not report one.",
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "FailureCode": {
+      "description": "Engine failure codes. Any other snake_case code is a step error.",
+      "anyOf": [
+        { "$ref": "#/$defs/TerminalFailureCode" },
+        { "$ref": "#/$defs/RerunFailureCode" },
+        { "$ref": "#/$defs/StepErrorFailureCode" },
+        { "$ref": "ConversionUnit.json#/$defs/SnakeCode" }
+      ]
+    },
+    "TerminalFailureCode": {
+      "description": "Class `terminal` (public name: final). The stage fails at once, with no retry. `input_too_large`, `too_many_pages` and `resource_limit` are the size codes (`TooLargeFailureCode`).",
+      "enum": ["encrypted", "unsupported_format", "malformed_document", "malformed_pdf", "no_pages", "input_too_large", "too_many_pages", "resource_limit"]
+    },
+    "TooLargeFailureCode": {
+      "description": "The final size codes: they fail as \"too large\" (error kind `converter_too_large`).",
+      "enum": ["input_too_large", "too_many_pages", "resource_limit"]
+    },
+    "RerunFailureCode": {
+      "description": "Class `rerun` (public name: new run). One new run of the conversion after 10 minutes, if reruns remain in the cycle and no failed rerun has happened in it; otherwise, and after that run, final.",
+      "enum": ["timeout", "converter_crashed", "memory_limit", "converter_output_invalid"]
+    },
+    "StepErrorFailureCode": {
+      "description": "Class `job_error` (public name: step error) codes produced by the core's normaliser of failure codes: `conversion_failed` when the engine gave no code, `unknown` when it gave text that is not a snake_case code. Any other unregistered snake_case code is also a step error.",
+      "enum": ["conversion_failed", "unknown"]
+    }
+  },
+  "examples": [
+    {
+      "status": "ready",
+      "markdown": "<!-- page: 1 -->\n\n# Supply agreement\n\nThe supplier delivers the goods to the central warehouse.\n\n<!-- page: 2 -->\n\n## Delivery terms\n\nDelivery takes place within ten working days after the order.\n",
+      "pages": 2,
+      "units": [
+        {
+          "kind": "page",
+          "number": 1,
+          "method": "pdf_text",
+          "chars": 73,
+          "images": 0,
+          "warnings": []
+        },
+        {
+          "kind": "page",
+          "number": 2,
+          "method": "pdf_text",
+          "chars": 75,
+          "images": 0,
+          "warnings": []
+        }
+      ],
+      "warnings": [],
+      "engine": {
+        "id": "builtin",
+        "release": "0.1.0"
+      }
+    },
+    {
+      "status": "ready",
+      "markdown": "<!-- page: 1 -->\n\n# Inspection report\n\nThe site was inspected on 3 March.\n\n<!-- page: 2 -->\n\nSigned by the inspection team. Defects found: none.\n",
+      "pages": 2,
+      "units": [
+        {
+          "kind": "page",
+          "number": 1,
+          "method": "pdf_text",
+          "chars": 51,
+          "images": 0,
+          "warnings": []
+        },
+        {
+          "kind": "page",
+          "number": 2,
+          "method": "ocr_model",
+          "chars": 51,
+          "images": 1,
+          "warnings": []
+        }
+      ],
+      "warnings": [],
+      "engine": {
+        "id": "builtin",
+        "release": "0.1.0"
+      }
+    },
+    {
+      "status": "ready",
+      "markdown": "<!-- page: 1 -->\n\nTvqqmz bhsffnfou, dfousbm xbsfipvtf, ufo xpsljoh ebzt.\n",
+      "pages": 1,
+      "units": [
+        {
+          "kind": "page",
+          "number": 1,
+          "method": "pdf_text",
+          "chars": 54,
+          "images": 0,
+          "warnings": [
+            "broken_text_layer"
+          ]
+        }
+      ],
+      "warnings": [],
+      "engine": {
+        "id": "builtin",
+        "release": "0.1.0"
+      }
+    },
+    {
+      "status": "partial",
+      "markdown": "## Sales\n\n| Region | Amount |\n|---|---|\n| North | 120 |\n| South | 95 |\n",
+      "pages": null,
+      "units": [
+        {
+          "kind": "sheet",
+          "number": 1,
+          "method": "ooxml",
+          "chars": 27,
+          "images": 0,
+          "hidden": false,
+          "warnings": [
+            "table_truncated"
+          ]
+        }
+      ],
+      "warnings": [],
+      "engine": {
+        "id": "builtin",
+        "release": "0.1.0"
+      }
+    },
+    {
+      "status": "ready",
+      "markdown": "<!-- page: 1 -->\n\n## Slide 1. Project plan\n\nKick-off in March\n\nPilot in two teams\n\n<!-- page: 2 -->\n\n## Slide 2. Draft ideas (hidden)\n\nIdeas that are not final yet.\n\n<!-- page: 3 -->\n\n## Slide 3. Next steps\n\nAgree the pilot scope.\n",
+      "pages": 3,
+      "units": [
+        {
+          "kind": "slide",
+          "number": 1,
+          "method": "ooxml",
+          "chars": 47,
+          "images": 0,
+          "hidden": false,
+          "warnings": []
+        },
+        {
+          "kind": "slide",
+          "number": 2,
+          "method": "ooxml",
+          "chars": 40,
+          "images": 0,
+          "hidden": true,
+          "warnings": []
+        },
+        {
+          "kind": "slide",
+          "number": 3,
+          "method": "ooxml",
+          "chars": 32,
+          "images": 0,
+          "hidden": false,
+          "warnings": []
+        }
+      ],
+      "warnings": [],
+      "engine": {
+        "id": "builtin",
+        "release": "0.1.0"
+      }
+    },
+    {
+      "status": "ready",
+      "markdown": "<!-- page: 1 -->\n\n## Слайд 1. Project plan\n\nKick-off in March\n\nPilot in two teams\n\n<!-- page: 2 -->\n\n## Слайд 2. Draft ideas (скрытый)\n\nIdeas that are not final yet.\n\n<!-- page: 3 -->\n\n## Слайд 3. Next steps\n\nAgree the pilot scope.\n",
+      "pages": 3,
+      "units": [
+        {
+          "kind": "slide",
+          "number": 1,
+          "method": "ooxml",
+          "chars": 47,
+          "images": 0,
+          "hidden": false,
+          "warnings": []
+        },
+        {
+          "kind": "slide",
+          "number": 2,
+          "method": "ooxml",
+          "chars": 40,
+          "images": 0,
+          "hidden": true,
+          "warnings": []
+        },
+        {
+          "kind": "slide",
+          "number": 3,
+          "method": "ooxml",
+          "chars": 32,
+          "images": 0,
+          "hidden": false,
+          "warnings": []
+        }
+      ],
+      "warnings": [],
+      "engine": {
+        "id": "builtin",
+        "release": "0.1.0"
+      }
+    },
+    {
+      "status": "ready",
+      "markdown": "## Budget\n\n| Item | Cost |\n|---|---|\n| Licences | 1200 |\n\n## Rates (hidden)\n\n| Role | Rate |\n|---|---|\n| Analyst | 50 |\n",
+      "pages": null,
+      "units": [
+        {
+          "kind": "sheet",
+          "number": 1,
+          "method": "ooxml",
+          "chars": 20,
+          "images": 0,
+          "hidden": false,
+          "warnings": []
+        },
+        {
+          "kind": "sheet",
+          "number": 2,
+          "method": "ooxml",
+          "chars": 17,
+          "images": 0,
+          "hidden": true,
+          "warnings": []
+        }
+      ],
+      "warnings": [],
+      "engine": {
+        "id": "builtin",
+        "release": "0.1.0"
+      }
+    },
+    {
+      "status": "ready",
+      "markdown": "# Supply terms\n\nThe supplier delivers the goods within 10 days.\n\n## Payment\n\nPayment is due within 30 days of delivery.\n",
+      "pages": null,
+      "units": [
+        {
+          "kind": "file",
+          "number": null,
+          "method": "ooxml",
+          "chars": 108,
+          "images": 0,
+          "warnings": []
+        }
+      ],
+      "warnings": [],
+      "engine": {
+        "id": "builtin",
+        "release": "0.1.0"
+      }
+    },
+    {
+      "status": "failed",
+      "error": "encrypted",
+      "markdown": null,
+      "pages": null,
+      "units": [],
+      "warnings": [],
+      "engine": {
+        "id": "builtin",
+        "release": "0.1.0"
+      }
+    },
+    {
+      "status": "ready",
+      "markdown": "<!-- page: 1 -->\n\n## Slide 1\n\n<!-- page: 2 -->\n\n## Slide 2\n",
+      "pages": 2,
+      "units": [
+        {
+          "kind": "slide",
+          "number": 1,
+          "method": "ooxml",
+          "chars": 0,
+          "images": 0,
+          "hidden": false,
+          "warnings": []
+        },
+        {
+          "kind": "slide",
+          "number": 2,
+          "method": "ooxml",
+          "chars": 0,
+          "images": 0,
+          "hidden": false,
+          "warnings": []
+        }
+      ],
+      "warnings": [],
+      "engine": {
+        "id": "builtin",
+        "release": "0.1.0"
+      }
+    },
+    {
+      "status": "ready",
+      "markdown": "<!-- page: 1 -->\n\n[figure]\n",
+      "pages": 1,
+      "units": [
+        {
+          "kind": "page",
+          "number": 1,
+          "method": "ocr_unavailable",
+          "chars": 0,
+          "images": 1,
+          "warnings": [
+            "ocr_not_configured"
+          ]
+        }
+      ],
+      "warnings": [],
+      "engine": {
+        "id": "builtin",
+        "release": "0.1.0"
+      }
+    },
+    {
+      "status": "ready",
+      "markdown": "<!-- page: 1 -->\n\n# Delivery note\n\nGoods received in full.\n\n<!-- page: 2 -->\n",
+      "pages": 2,
+      "units": [
+        {
+          "kind": "page",
+          "number": 1,
+          "method": "pdf_text",
+          "chars": 36,
+          "images": 0,
+          "warnings": []
+        },
+        {
+          "kind": "page",
+          "number": 2,
+          "method": "pdf_text",
+          "chars": 0,
+          "images": 0,
+          "warnings": []
+        }
+      ],
+      "warnings": [],
+      "engine": {
+        "id": "builtin",
+        "release": "0.1.0"
+      }
+    }
+  ]
+}

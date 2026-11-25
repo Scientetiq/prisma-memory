@@ -1,0 +1,58 @@
+{
+  "containers": [
+    {
+      "kind": "sheet",
+      "number": 1,
+      "hidden": false,
+      "title": "Budget",
+      "method": "ooxml",
+      "blocks": [
+        {
+          "type": "table",
+          "header_row": true,
+          "rows": [
+            {
+              "cells": [
+                "Item",
+                "Cost"
+              ]
+            },
+            {
+              "cells": [
+                "Licences",
+                "1200"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "sheet",
+      "number": 2,
+      "hidden": true,
+      "title": "Rates",
+      "method": "ooxml",
+      "blocks": [
+        {
+          "type": "table",
+          "header_row": true,
+          "rows": [
+            {
+              "cells": [
+                "Role",
+                "Rate"
+              ]
+            },
+            {
+              "cells": [
+                "Analyst",
+                "50"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

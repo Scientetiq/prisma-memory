@@ -1,0 +1,96 @@
+{
+  "title": "Broken PDF text layer",
+  "description": "The page has a text layer, but its fonts have no Unicode map, so the extracted characters are wrong. The engine reports `broken_text_layer` on the page. Planned rule: extraction partial, and the original is not handed out to agents (`broken_text_layer`). Today the code only stores the warning, which `current` shows.",
+  "content_locale": "en",
+  "rule_status": "planned",
+  "conversion": {
+    "status": "ready",
+    "markdown": "<!-- page: 1 -->\n\nTvqqmz bhsffnfou, dfousbm xbsfipvtf, ufo xpsljoh ebzt.\n",
+    "pages": 1,
+    "units": [
+      {
+        "kind": "page",
+        "number": 1,
+        "method": "pdf_text",
+        "chars": 54,
+        "images": 0,
+        "warnings": [
+          "broken_text_layer"
+        ]
+      }
+    ],
+    "warnings": [],
+    "engine": {
+      "id": "builtin",
+      "release": "0.1.0"
+    }
+  },
+  "input": {
+    "status": "ready",
+    "error": null,
+    "text": "<!-- page: 1 -->\n\nTvqqmz bhsffnfou, dfousbm xbsfipvtf, ufo xpsljoh ebzt.\n",
+    "units": [
+      {
+        "kind": "page",
+        "number": 1,
+        "method": "pdf_text",
+        "chars": 54,
+        "images": 0,
+        "warnings": [
+          "broken_text_layer"
+        ]
+      }
+    ],
+    "warnings": [],
+    "images_found": 0,
+    "engine_format": "pdf",
+    "detected_format": "pdf",
+    "source_flags": [],
+    "engine": {
+      "id": "builtin",
+      "release": "0.1.0"
+    }
+  },
+  "expected": {
+    "status": "ready",
+    "text": "<!-- page: 1 -->\n\nTvqqmz bhsffnfou, dfousbm xbsfipvtf, ufo xpsljoh ebzt.\n",
+    "pages": 1,
+    "extraction": "partial",
+    "agent_file": false,
+    "agent_file_why": [
+      "broken_text_layer"
+    ],
+    "warning_codes": [
+      "broken_text_layer"
+    ],
+    "ocr_units": 0,
+    "ocr_rerun": false,
+    "error_code": null,
+    "error_class": null,
+    "engine_format": "pdf",
+    "engine": {
+      "id": "builtin",
+      "release": "0.1.0"
+    }
+  },
+  "current": {
+    "status": "ready",
+    "text": "<!-- page: 1 -->\n\nTvqqmz bhsffnfou, dfousbm xbsfipvtf, ufo xpsljoh ebzt.\n",
+    "pages": 1,
+    "extraction": "ready",
+    "agent_file": true,
+    "agent_file_why": [],
+    "warning_codes": [
+      "broken_text_layer"
+    ],
+    "ocr_units": 0,
+    "ocr_rerun": false,
+    "error_code": null,
+    "error_class": null,
+    "engine_format": "pdf",
+    "engine": {
+      "id": "builtin",
+      "release": "0.1.0"
+    }
+  }
+}

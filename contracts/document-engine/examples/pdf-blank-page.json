@@ -1,0 +1,84 @@
+{
+  "title": "PDF with a blank page stays ready",
+  "description": "Page 1 has a text layer; page 2 is blank, so its unit has `chars = 0`. Extraction is `unavailable` only when every unit has `chars = 0`: one empty page among pages with text keeps extraction `ready`, and the PDF reaches agents.",
+  "content_locale": "en",
+  "rule_status": "current",
+  "conversion": {
+    "status": "ready",
+    "markdown": "<!-- page: 1 -->\n\n# Delivery note\n\nGoods received in full.\n\n<!-- page: 2 -->\n",
+    "pages": 2,
+    "units": [
+      {
+        "kind": "page",
+        "number": 1,
+        "method": "pdf_text",
+        "chars": 36,
+        "images": 0,
+        "warnings": []
+      },
+      {
+        "kind": "page",
+        "number": 2,
+        "method": "pdf_text",
+        "chars": 0,
+        "images": 0,
+        "warnings": []
+      }
+    ],
+    "warnings": [],
+    "engine": {
+      "id": "builtin",
+      "release": "0.1.0"
+    }
+  },
+  "input": {
+    "status": "ready",
+    "error": null,
+    "text": "<!-- page: 1 -->\n\n# Delivery note\n\nGoods received in full.\n\n<!-- page: 2 -->\n",
+    "units": [
+      {
+        "kind": "page",
+        "number": 1,
+        "method": "pdf_text",
+        "chars": 36,
+        "images": 0,
+        "warnings": []
+      },
+      {
+        "kind": "page",
+        "number": 2,
+        "method": "pdf_text",
+        "chars": 0,
+        "images": 0,
+        "warnings": []
+      }
+    ],
+    "warnings": [],
+    "images_found": 0,
+    "engine_format": "pdf",
+    "detected_format": "pdf",
+    "source_flags": [],
+    "engine": {
+      "id": "builtin",
+      "release": "0.1.0"
+    }
+  },
+  "expected": {
+    "status": "ready",
+    "text": "<!-- page: 1 -->\n\n# Delivery note\n\nGoods received in full.\n\n<!-- page: 2 -->\n",
+    "pages": 2,
+    "extraction": "ready",
+    "agent_file": true,
+    "agent_file_why": [],
+    "warning_codes": [],
+    "ocr_units": 0,
+    "ocr_rerun": false,
+    "error_code": null,
+    "error_class": null,
+    "engine_format": "pdf",
+    "engine": {
+      "id": "builtin",
+      "release": "0.1.0"
+    }
+  }
+}

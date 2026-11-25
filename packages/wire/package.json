@@ -1,0 +1,22 @@
+{
+  "name": "@memory/wire",
+  "version": "0.1.0",
+  "private": true,
+  "license": "LicenseRef-Prisma-Memory",
+  "type": "module",
+  "description": "Shared format of the edge and the inner services — a leaf with no memory packages and no input or output: anchors (SSHSIG ed25519), bridge API types, the registry of request kinds, sealed sign-in check requests (HPKE RFC 9180 on node:crypto)",
+  "exports": {
+    "./common": "./src/common/index.ts",
+    "./login-edge": "./src/login-edge.ts",
+    "./login-inner": "./src/login-inner.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  }
+}

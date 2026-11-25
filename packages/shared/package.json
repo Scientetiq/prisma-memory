@@ -1,0 +1,53 @@
+{
+  "name": "@memory/shared",
+  "version": "0.1.0",
+  "private": true,
+  "license": "LicenseRef-Prisma-Memory",
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./ldap": "./src/ldap.ts",
+    "./settings": "./src/settings.ts",
+    "./crypto": "./src/crypto.ts",
+    "./factor": "./src/factor.ts",
+    "./db-pool": "./src/db.ts",
+    "./credentials": "./src/credentials.ts",
+    "./external-notices": "./src/external-notices.ts",
+    "./settings-key": "./src/settings-key.ts",
+    "./settings-tier": "./src/settings-tier.ts",
+    "./ldap-account": "./src/ldap-account.ts",
+    "./service-env": "./src/service-env.ts",
+    "./edge-settings": "./src/edge-settings.ts",
+    "./oauth-as": "./src/oauth-as/index.ts"
+  },
+  "description": "Shared by the gateway and the workers: connections by role, settings with encrypted secrets, identifiers, error codes and data markers, contracts, the platform gateway client, logs without content",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "contracts:gen": "node scripts/gen-contracts.mjs",
+    "contracts:check": "node scripts/gen-contracts.mjs --check"
+  },
+  "dependencies": {
+    "@memory/i18n": "workspace:*",
+    "@memory/mcp-core": "workspace:*",
+    "@memory/wire": "workspace:*",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
+    "fflate": "^0.8.3",
+    "jose": "6.2.12",
+    "ldapts": "9.2.0",
+    "minio": "^8.0.5",
+    "nodemailer": "10.6.1",
+    "pg": "^8.23.0",
+    "uuid": "^11.1.0",
+    "yaml": "^2.8.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/nodemailer": "^8.0.2",
+    "@types/pg": "^8.15.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  }
+}

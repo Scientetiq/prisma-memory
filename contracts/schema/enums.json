@@ -1,0 +1,1741 @@
+{
+  "format": "memory-enums/1",
+  "$comment": [
+    "Registry of the enumerations. The only source of the values of CHECK … IN (…) in DDL 09–16, edge/e0* and MAIL_KINDS (shared/src/enums.gen.ts, pnpm contracts:gen).",
+    "values — sections keyed by the names in stages: base — the core values, then one section per DDL section. A section is extended together with the memory_check_extend block of the same DDL section, in the same commit. Values are never removed.",
+    "The registry holds only the values the DDL allows: the schema test inserts a row for every value and compares the constraint in the database with the registry (equality).",
+    "uses — where the enumeration stands in the database: database, table, column, constraint name, the DDL section that creates the column (stage), and a probe for the schema test — inserting one row, {v} is replaced by the value in quotes. If the table does not exist yet, the probe is skipped.",
+    "x-probe-setup — preparation of the probes in each database (once, before the inserts).",
+    "Each section in values is its own line after an empty one: edits of neighboring sections merge without conflicts (the contract validator checks it).",
+    "settings.category locale is added by 17-basic-tails.sql, which is applied after the main schema files, so it is listed in the last section, 5."
+  ],
+  "stages": ["base", "P0", "1a", "1b", "1c", "1d", "1e", "1f", "S2-3", "4", "E2", "5"],
+  "x-probe-setup": {
+    "memory_control": "INSERT INTO instances (id, name) VALUES ('xs', 'Enumeration probe') ON CONFLICT (id) DO NOTHING; INSERT INTO people (id, login, display_name, instance_id) VALUES ('00000000-0000-4000-8000-0000000000a1', 'xs_probe@example.test', 'Enumeration probe', 'xs') ON CONFLICT (id) DO NOTHING",
+    "memory_audit": "SELECT 1",
+    "memory_open": "SELECT 1",
+    "memory_closed": "SELECT 1",
+    "memory_edge": "SELECT 1"
+  },
+  "enums": {
+    "settings.category": {
+      "uses": [
+        { "db": "memory_control", "table": "settings", "column": "category", "constraint": "settings_category_check", "stage": "base",
+          "probe": "INSERT INTO settings (instance_id, category, key, value) VALUES ('xs', {v}, 'xs_probe', '1')" }
+      ],
+      "values": {
+        "base": ["models", "retrieval", "storage", "integrations", "processing", "limits", "search", "access", "ldap", "oidc", "oauth", "smtp", "meetings", "open_check", "observability", "onboarding", "topics", "approvals"],
+
+        "P0": ["edge", "admin"],
+
+        "1a": ["security"],
+
+        "1b": [],
+
+        "1c": [],
+
+        "1d": [],
+
+        "1e": [],
+
+        "1f": [],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": ["locale", "agent_auth"]
+      }
+    },
+    "mail_outbox.kind": {
+      "uses": [
+        { "db": "memory_control", "table": "mail_outbox", "column": "kind", "constraint": "mail_outbox_kind_check", "stage": "base",
+          "probe": "INSERT INTO mail_outbox (id, instance_id, kind, to_address, subject, body_text) VALUES (gen_random_uuid(), 'xs', {v}, 'probe@example.test', 'probe', 'probe')" }
+      ],
+      "values": {
+        "base": ["test", "approval", "meeting_delete", "curator_digest", "meeting_new", "custody"],
+
+        "P0": [],
+
+        "1a": ["alert", "identity_change"],
+
+        "1b": [],
+
+        "1c": [],
+
+        "1d": [],
+
+        "1e": ["external"],
+
+        "1f": ["security"],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": ["morning_note"]
+      }
+    },
+    "user_sessions.source": {
+      "uses": [
+        { "db": "memory_control", "table": "user_sessions", "column": "source", "constraint": "user_sessions_source_check", "stage": "base",
+          "probe": "INSERT INTO user_sessions (id, token_hash, person_id, instance_id, source, expires_at) VALUES (gen_random_uuid(), sha256(convert_to('xs-user-session-source-' || {v}, 'UTF8')), '00000000-0000-4000-8000-0000000000a1', 'xs', {v}, now() + interval '1 minute')" }
+      ],
+      "values": {
+        "base": ["ldap", "oidc", "test"],
+
+        "P0": [],
+
+        "1a": [],
+
+        "1b": [],
+
+        "1c": [],
+
+        "1d": [],
+
+        "1e": [],
+
+        "1f": [],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": ["local"]
+      }
+    },
+    "audit_events.event_type": {
+      "uses": [
+        { "db": "memory_audit", "table": "audit_events", "column": "event_type", "constraint": "audit_events_event_type_check", "stage": "base",
+          "probe": "INSERT INTO audit_events (instance_id, event_type) VALUES ('xs', {v})" }
+      ],
+      "values": {
+        "base": ["read", "search", "list", "write", "promote", "open", "forget", "extended_key_use", "t1_fallback", "confirmation", "admin", "processing", "auth_failure", "rate_limited", "class_move", "purge", "directory"],
+
+        "P0": [],
+
+        "1a": [],
+
+        "1b": ["edge_event", "edge_alarm"],
+
+        "1c": [],
+
+        "1d": ["ops"],
+
+        "1e": ["external", "edge_alert"],
+
+        "1f": ["factor"],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": []
+      }
+    },
+    "api_keys.client_kind": {
+      "uses": [
+        { "db": "memory_control", "table": "api_keys", "column": "client_kind", "constraint": "api_keys_client_kind_check", "stage": "base",
+          "probe": "INSERT INTO api_keys (key_prefix, key_hash, principal_type, principal_id, kind, tier, instance_id, client_kind) VALUES ('xs_probe', sha256(convert_to('xs-client-kind-' || {v}, 'UTF8')), 'person', '00000000-0000-4000-8000-0000000000a1', 'personal', 'T2', 'xs', {v})" }
+      ],
+      "values": {
+        "base": ["claude_code", "codex", "cursor", "cloud_other", "script"],
+
+        "P0": [],
+
+        "1a": [],
+
+        "1b": [],
+
+        "1c": [],
+
+        "1d": [],
+
+        "1e": ["vscode", "local_other", "claude_desktop"],
+
+        "1f": [],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": []
+      }
+    },
+    "mfa_level": {
+      "$comment": "Registry of the second-factor level (the login-check contract): closed entirely in P0 — each stage sets the CHECK of its column with a helper, at once with all values.",
+      "uses": [
+        { "db": "memory_edge", "table": "edge_connections", "column": "mfa_level", "constraint": "edge_connections_mfa_level_check", "stage": "P0",
+          "probe": "INSERT INTO edge_connections (connection_id, person_id, client_id, client_kind, resource, grant_id, challenge_hash, code_hash, mfa_level, expires_at, idle_expires_at) VALUES (gen_random_uuid(), gen_random_uuid(), 'xs-mfa', 'local_other', 'https://edge.example.test/mcp', 'xs-grant', 'xs-challenge', sha256(convert_to('xs-mfa-' || {v}, 'UTF8')), {v}, now() + interval '1 day', now() + interval '1 day')" },
+        { "db": "memory_control", "table": "login_sessions", "column": "mfa_level", "constraint": "login_sessions_mfa_level_check", "stage": "1e",
+          "probe": "INSERT INTO login_sessions (id, secret_hash, person_id, instance_id, mfa_level, auth_time, expires_at) VALUES (gen_random_uuid(), sha256(convert_to('xs-ls-' || {v}, 'UTF8')), '00000000-0000-4000-8000-0000000000a1', 'xs', {v}, now(), now() + interval '1 hour')" },
+        { "db": "memory_control", "table": "edge_grants", "column": "mfa_level", "constraint": "edge_grants_mfa_level_check", "stage": "1e",
+          "probe": "WITH s AS (INSERT INTO login_sessions (id, secret_hash, person_id, instance_id, mfa_level, auth_time, expires_at) VALUES (gen_random_uuid(), sha256(convert_to('xs-eg-' || {v}, 'UTF8')), '00000000-0000-4000-8000-0000000000a1', 'xs', 'none', now(), now() + interval '1 hour') RETURNING id) INSERT INTO edge_grants (id, grant_hash, person_id, session_id, instance_id, client_id, resource, challenge_hash, mfa_level, expires_at) SELECT gen_random_uuid(), sha256(convert_to('xs-grant-' || {v}, 'UTF8')), '00000000-0000-4000-8000-0000000000a1', id, 'xs', 'xs-client', 'https://edge.example.test/mcp', repeat('A', 43), {v}, now() + interval '10 minutes' FROM s" },
+        { "db": "memory_control", "table": "oauth_connections", "column": "mfa_level", "constraint": "oauth_connections_mfa_level_check", "stage": "1e",
+          "probe": "INSERT INTO api_keys (id, key_prefix, principal_type, principal_id, kind, tier, instance_id, client_kind, auth_method, expires_at) VALUES (md5('xs-ocm-' || {v})::uuid, 'oauth', 'person', '00000000-0000-4000-8000-0000000000a1', 'personal', 'T2', 'xs', 'codex', 'oauth', now() + interval '30 days'); INSERT INTO oauth_connections (id, instance_id, issuer, subject, client_id, session_id, person_id, resource_url, origin, grant_hash, challenge_hash, mfa_level, consent_version) VALUES (md5('xs-ocm-' || {v})::uuid, 'xs', 'https://login.example.test', 'xs-ocm-' || {v}, 'xs-client', 'xs-ocm-' || {v}, '00000000-0000-4000-8000-0000000000a1', 'https://edge.example.test/mcp', 'edge', sha256(convert_to('xs-ocm-' || {v}, 'UTF8')), repeat('A', 43), {v}, 1)" },
+        { "db": "memory_control", "table": "login_tickets", "column": "mfa_level", "constraint": "login_tickets_mfa_level_check", "stage": "1f",
+          "probe": "INSERT INTO login_tickets (ticket_hash, person_id, instance_id, tx_id, mfa_level, expires_at) VALUES (sha256(convert_to('xs-lt-' || {v}, 'UTF8')), '00000000-0000-4000-8000-0000000000a1', 'xs', 'xs-ticket-probe-0001', {v}, now() + interval '5 minutes')" },
+        { "db": "memory_edge", "table": "login.sessions", "column": "mfa_level", "constraint": "sessions_mfa_level_check", "stage": "1e",
+          "probe": "INSERT INTO login.sessions (cookie_hash, person_id, mfa_level, auth_time, expires_at) VALUES (sha256(convert_to('xs-ls-' || {v}, 'UTF8')), gen_random_uuid(), {v}, now(), now() + interval '1 hour')" },
+        { "db": "memory_edge", "table": "login.codes", "column": "mfa_level", "constraint": "codes_mfa_level_check", "stage": "1e",
+          "probe": "INSERT INTO login.codes (hash, client_id, redirect_uri, code_challenge, resource, grant_id, person_id, mfa_level, expires_at) VALUES (sha256(convert_to('xs-lc-' || {v}, 'UTF8')), 'xs-client', 'http://127.0.0.1:1/cb', repeat('A', 43), 'https://edge.example.test/mcp', repeat('B', 22), gen_random_uuid(), {v}, now() + interval '1 minute')" }
+      ],
+      "values": {
+        "base": [],
+
+        "P0": ["none", "totp", "recovery", "radius_otp", "push", "passkey"],
+
+        "1a": [],
+
+        "1b": [],
+
+        "1c": [],
+
+        "1d": [],
+
+        "1e": [],
+
+        "1f": [],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": []
+      }
+    },
+    "mfa_factors.kind": {
+      "$comment": "Kind of a person’s second factor: totp — an authenticator app, radius_otp — a stub (sign-in with it is refused with factor_unavailable).",
+      "uses": [
+        { "db": "memory_control", "table": "mfa_factors", "column": "kind", "constraint": "mfa_factors_kind_check", "stage": "1f",
+          "probe": "INSERT INTO mfa_factors (id, person_id, kind, secret_enc, key_version, label) VALUES (gen_random_uuid(), '00000000-0000-4000-8000-0000000000a1', {v}, '\\x00'::bytea, 1, 'probe')" }
+      ],
+      "values": {
+        "base": [],
+
+        "P0": [],
+
+        "1a": [],
+
+        "1b": [],
+
+        "1c": [],
+
+        "1d": [],
+
+        "1e": [],
+
+        "1f": ["totp", "radius_otp"],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": []
+      }
+    },
+    "mfa_mode": {
+      "$comment": "Second-factor mode (edge.mfa_mode): the log mfa_mode_changes of changes of the effective mode — from which and to which. The same values are used by anchors_applied.mfa_mode_min.",
+      "uses": [
+        { "db": "memory_control", "table": "mfa_mode_changes", "column": "from_mode", "constraint": "mfa_mode_changes_from_mode_check", "stage": "1f",
+          "probe": "INSERT INTO mfa_mode_changes (instance_id, from_mode, to_mode, by) VALUES ('xs', {v}, 'off', 'xs:probe')" },
+        { "db": "memory_control", "table": "mfa_mode_changes", "column": "to_mode", "constraint": "mfa_mode_changes_to_mode_check", "stage": "1f",
+          "probe": "INSERT INTO mfa_mode_changes (instance_id, from_mode, to_mode, by) VALUES ('xs', 'off', {v}, 'xs:probe')" }
+      ],
+      "values": {
+        "base": [],
+
+        "P0": [],
+
+        "1a": [],
+
+        "1b": [],
+
+        "1c": [],
+
+        "1d": [],
+
+        "1e": [],
+
+        "1f": ["off", "optional", "required"],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": []
+      }
+    },
+    "edge_quota_day.kind": {
+      "$comment": "Kind of the edge’s daily quota: the same values as mcp-tools-edge.json#/quota/kinds and the keys of edge.quota_daily (no tz).",
+      "uses": [
+        { "db": "memory_edge", "table": "edge_quota_day", "column": "kind", "constraint": "edge_quota_day_kind_check", "stage": "1d",
+          "probe": "INSERT INTO edge_quota_day (person_id, day, kind, count, bytes) VALUES ('00000000-0000-4000-8000-0000000000a1', current_date, {v}, 1, 0)" }
+      ],
+      "values": {
+        "base": [],
+
+        "P0": [],
+
+        "1a": [],
+
+        "1b": [],
+
+        "1c": [],
+
+        "1d": ["search", "read", "list", "text_tokens", "originals", "originals_mib", "c2_items", "c2_mib"],
+
+        "1e": [],
+
+        "1f": [],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": []
+      }
+    },
+    "login.checks.kind": {
+      "$comment": "Kinds of a check request: the number in a smallint column, CHECK (kind BETWEEN 1 AND …) is set by the schema; the number is codes, the name is the registry value. A new kind only by an entry here and in the login-check contract. ping (7) — the edge liveness signal: the limit up to 7 is raised by e02.",
+      "check": "smallint_range",
+      "codes": { "code": 1, "password": 2, "authorize": 3, "passkey": 4, "passkey_challenge": 5, "push": 6, "ping": 7 },
+      "uses": [
+        { "db": "memory_edge", "table": "login.checks", "column": "kind", "constraint": "checks_kind_check", "stage": "1e",
+          "probe": "INSERT INTO login.checks (id, kind, blob) VALUES (gen_random_uuid(), {v}, '\\x00'::bytea)" }
+      ],
+      "values": {
+        "base": [],
+
+        "P0": ["code", "password", "authorize", "passkey", "passkey_challenge", "push"],
+
+        "1a": [],
+
+        "1b": [],
+
+        "1c": [],
+
+        "1d": [],
+
+        "1e": [],
+
+        "1f": ["ping"],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": []
+      }
+    },
+    "login.tx.step": {
+      "$comment": "Step of a sign-in transaction: login → consent — the client’s sign-in; account → account_ok — the “My external access” page.",
+      "uses": [
+        { "db": "memory_edge", "table": "login.tx", "column": "step", "constraint": "tx_step_check", "stage": "1e",
+          "probe": "INSERT INTO login.tx (id, cookie_hash, host, client_id, redirect_uri, code_challenge, resource, csrf, step, expires_at) VALUES (gen_random_uuid(), sha256(convert_to('xs-tx-' || {v}, 'UTF8')), 'login.example.test', 'xs-client', 'http://127.0.0.1:1/cb', repeat('A', 43), 'https://edge.example.test/mcp', sha256(convert_to('xs-csrf-' || {v}, 'UTF8')), {v}, now() + interval '10 minutes')" }
+      ],
+      "values": {
+        "base": [],
+
+        "P0": [],
+
+        "1a": [],
+
+        "1b": [],
+
+        "1c": [],
+
+        "1d": [],
+
+        "1e": ["login", "consent", "account", "account_ok"],
+
+        "1f": [],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": []
+      }
+    },
+    "login.tx.mfa_stage": {
+      "$comment": "Second-factor step in a sign-in transaction (the login-check contract): NULL — the first screen (e-mail and password when off, e-mail only when optional and required); code — the code screen; password_ticket — the password after a correct code (the ticket is in mfa_ticket); password_unenrolled — the password after “second factor not set up” (optional only).",
+      "uses": [
+        { "db": "memory_edge", "table": "login.tx", "column": "mfa_stage", "constraint": "tx_mfa_stage_check", "stage": "1f",
+          "probe": "INSERT INTO login.tx (id, cookie_hash, host, client_id, redirect_uri, code_challenge, resource, csrf, step, mfa_stage, expires_at) VALUES (gen_random_uuid(), sha256(convert_to('xs-txm-' || {v}, 'UTF8')), 'login.example.test', 'xs-client', 'http://127.0.0.1:1/cb', repeat('A', 43), 'https://edge.example.test/mcp', sha256(convert_to('xs-csrfm-' || {v}, 'UTF8')), 'login', {v}, now() + interval '10 minutes')" }
+      ],
+      "values": {
+        "base": [],
+
+        "P0": [],
+
+        "1a": [],
+
+        "1b": [],
+
+        "1c": [],
+
+        "1d": [],
+
+        "1e": [],
+
+        "1f": ["code", "password_ticket", "password_unenrolled"],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": []
+      }
+    },
+    "edge_backchannel.kind": {
+      "$comment": "Kind of an edge backchannel event (bridge-api.yaml#/components/schemas/BackchannelEvent): edge → bridge → intake inside.",
+      "uses": [
+        { "db": "memory_edge", "table": "edge_backchannel", "column": "kind", "constraint": "edge_backchannel_kind_check", "stage": "1e",
+          "probe": "INSERT INTO edge_backchannel (kind, body) VALUES ({v}, '{}'::jsonb)" }
+      ],
+      "values": {
+        "base": [],
+
+        "P0": [],
+
+        "1a": [],
+
+        "1b": [],
+
+        "1c": [],
+
+        "1d": [],
+
+        "1e": ["connection_created", "connection_revoked", "connection_used", "refresh_reuse", "person_revoke_all"],
+
+        "1f": [],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": []
+      }
+    },
+    "auth_pause.kind": {
+      "uses": [
+        { "db": "memory_control", "table": "auth_pause", "column": "kind", "constraint": "auth_pause_kind_check", "stage": "S2-3", "probe": null }
+      ],
+      "values": { "base": [], "P0": [], "1a": [], "1b": [], "1c": [], "1d": [], "1e": [], "1f": [], "S2-3": [], "4": [], "E2": [], "5": [] }
+    },
+    "auth_pause.scope": {
+      "uses": [
+        { "db": "memory_control", "table": "auth_pause", "column": "scope", "constraint": "auth_pause_scope_check", "stage": "S2-3", "probe": null }
+      ],
+      "values": { "base": [], "P0": [], "1a": [], "1b": [], "1c": [], "1d": [], "1e": [], "1f": [], "S2-3": [], "4": [], "E2": [], "5": [] }
+    },
+    "edge_outbox_control.kind": {
+      "$comment": "What stands in the memory_control export queue: an edge object; person_access — a person’s projection (revocation), projection and meta — whole (id is the zero uuid). Connection, client, session — revocation of a connection, a client and a sign-in session; person_login — revocation of everything the sign-in issued to a person (a person item without generation: what was issued before the before value, no before — everything; the kind is set by the trigger outbox_control_person_login in file 10; not to be confused with person — the removal of a profile).",
+      "uses": [
+        { "db": "memory_control", "table": "edge_outbox_control", "column": "kind", "constraint": "edge_outbox_control_kind_check", "stage": "1b",
+          "probe": "INSERT INTO edge_outbox_control (lane, kind, id, reason) VALUES ('publish', {v}, gen_random_uuid(), 'xs')" }
+      ],
+      "values": {
+        "base": [],
+
+        "P0": [],
+
+        "1a": [],
+
+        "1b": ["record", "link", "space", "person", "person_access", "projection", "entity", "meta"],
+
+        "1c": [],
+
+        "1d": [],
+
+        "1e": ["connection", "client", "session", "person_login"],
+
+        "1f": [],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": []
+      }
+    },
+    "edge_outbox_control.lane": {
+      "$comment": "Lane of the memory_control export queue: revoke — revocation (a separate pool, a watermark), publish — publication.",
+      "uses": [
+        { "db": "memory_control", "table": "edge_outbox_control", "column": "lane", "constraint": "edge_outbox_control_lane_check", "stage": "1b",
+          "probe": "INSERT INTO edge_outbox_control (lane, kind, id, reason) VALUES ({v}, 'record', gen_random_uuid(), 'xs')" }
+      ],
+      "values": {
+        "base": [],
+
+        "P0": [],
+
+        "1a": [],
+
+        "1b": ["revoke", "publish"],
+
+        "1c": [],
+
+        "1d": [],
+
+        "1e": [],
+
+        "1f": [],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": []
+      }
+    },
+    "edge_hold.reason": {
+      "$comment": "Reason for a sticky narrowing of a record for the edge: while the row exists, the gate is closed (condition 3).",
+      "uses": [
+        { "db": "memory_control", "table": "edge_hold", "column": "reason", "constraint": "edge_hold_reason_check", "stage": "1b",
+          "probe": "INSERT INTO edge_hold (record_id, reason, source) VALUES (gen_random_uuid(), {v}, 'xs')" }
+      ],
+      "values": {
+        "base": [],
+
+        "P0": [],
+
+        "1a": [],
+
+        "1b": ["close_requested", "hidden", "deleted", "open_check", "held", "org_review", "audience_people", "restore_tomb", "manual"],
+
+        "1c": [],
+
+        "1d": [],
+
+        "1e": [],
+
+        "1f": [],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": []
+      }
+    },
+    "edge_state.kind": {
+      "$comment": "Kind of an object with a generation counter and a tombstone.",
+      "uses": [
+        { "db": "memory_control", "table": "edge_state", "column": "kind", "constraint": "edge_state_kind_check", "stage": "1b",
+          "probe": "INSERT INTO edge_state (kind, id) VALUES ({v}, gen_random_uuid())" }
+      ],
+      "values": {
+        "base": [],
+
+        "P0": [],
+
+        "1a": [],
+
+        "1b": ["record", "link", "space", "person", "entity"],
+
+        "1c": [],
+
+        "1d": [],
+
+        "1e": [],
+
+        "1f": [],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": []
+      }
+    },
+    "edge_canaries.kind": {
+      "$comment": "Kind of a canary — a decoy record that must not be on the edge.",
+      "uses": [
+        { "db": "memory_control", "table": "edge_canaries", "column": "kind", "constraint": "edge_canaries_kind_check", "stage": "1b",
+          "probe": "INSERT INTO edge_canaries (record_id, kind, marker) VALUES (gen_random_uuid(), {v}, 'CANARY-' || md5(gen_random_uuid()::text))" }
+      ],
+      "values": {
+        "base": [],
+
+        "P0": [],
+
+        "1a": [],
+
+        "1b": ["closed_personal", "closed_team", "closed_meeting", "hidden_open", "transitional_nda", "transitional_held"],
+
+        "1c": [],
+
+        "1d": [],
+
+        "1e": [],
+
+        "1f": [],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": []
+      }
+    },
+    "edge_outbox.lane": {
+      "$comment": "Lane of the memory_open export queue.",
+      "uses": [
+        { "db": "memory_open", "table": "edge_outbox", "column": "lane", "constraint": "edge_outbox_lane_check", "stage": "1b",
+          "probe": "INSERT INTO edge_outbox (lane, kind, id, reason) VALUES ({v}, 'record', gen_random_uuid(), 'xs')" }
+      ],
+      "values": {
+        "base": [],
+
+        "P0": [],
+
+        "1a": [],
+
+        "1b": ["revoke", "publish"],
+
+        "1c": [],
+
+        "1d": [],
+
+        "1e": [],
+
+        "1f": [],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": []
+      }
+    },
+    "edge_outbox.kind": {
+      "$comment": "What stands in the memory_open export queue: a record (with its tree), link details, an original.",
+      "uses": [
+        { "db": "memory_open", "table": "edge_outbox", "column": "kind", "constraint": "edge_outbox_kind_check", "stage": "1b",
+          "probe": "INSERT INTO edge_outbox (lane, kind, id, reason) VALUES ('publish', {v}, gen_random_uuid(), 'xs')" }
+      ],
+      "values": {
+        "base": [],
+
+        "P0": [],
+
+        "1a": [],
+
+        "1b": ["record", "link_detail", "original"],
+
+        "1c": [],
+
+        "1d": [],
+
+        "1e": [],
+
+        "1f": [],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": []
+      }
+    },
+    "edge_tombstones.kind": {
+      "$comment": "Kind of a tombstone on the edge: a row of this kind with a generation not higher than the tombstone is not accepted.",
+      "uses": [
+        { "db": "memory_edge", "table": "edge_tombstones", "column": "kind", "constraint": "edge_tombstones_kind_check", "stage": "1b",
+          "probe": "INSERT INTO edge_tombstones (kind, id, tomb_gen) VALUES ({v}, gen_random_uuid()::text, 1)" }
+      ],
+      "values": {
+        "base": [],
+
+        "P0": [],
+
+        "1a": [],
+
+        "1b": ["record", "link", "space", "person", "entity", "original", "person_projection", "connection", "client", "session"],
+
+        "1c": [],
+
+        "1d": [],
+
+        "1e": [],
+
+        "1f": [],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": []
+      }
+    },
+    "edge_purge_queue.kind": {
+      "$comment": "What to remove physically from the edge after a revocation: record — the content, chunks and links of the record; original — files.",
+      "uses": [
+        { "db": "memory_edge", "table": "edge_purge_queue", "column": "kind", "constraint": "edge_purge_queue_kind_check", "stage": "1b",
+          "probe": "INSERT INTO edge_purge_queue (kind, id, generation) VALUES ({v}, gen_random_uuid(), 1)" }
+      ],
+      "values": {
+        "base": [],
+
+        "P0": [],
+
+        "1a": [],
+
+        "1b": ["record", "original"],
+
+        "1c": [],
+
+        "1d": [],
+
+        "1e": [],
+
+        "1f": [],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": []
+      }
+    },
+    "oauth_connections.origin": {
+      "$comment": "Where the connection comes from: keycloak — sign-in through the identity provider (OpenID Connect) inside, edge — sign-in from outside through the edge, builtin — the built-in agent sign-in server (the value is created by 17-basic-tails.sql [AS], section “5” is the last).",
+      "uses": [
+        { "db": "memory_control", "table": "oauth_connections", "column": "origin", "constraint": "oauth_connections_origin_check", "stage": "1e",
+          "probe": "INSERT INTO api_keys (id, key_prefix, principal_type, principal_id, kind, tier, instance_id, client_kind, auth_method, expires_at) VALUES (md5('xs-oco-' || {v})::uuid, 'oauth', 'person', '00000000-0000-4000-8000-0000000000a1', 'personal', 'T2', 'xs', 'codex', 'oauth', now() + interval '30 days'); INSERT INTO oauth_connections (id, instance_id, issuer, subject, client_id, session_id, person_id, resource_url, origin, grant_hash, challenge_hash, mfa_level, consent_version) VALUES (md5('xs-oco-' || {v})::uuid, 'xs', 'https://login.example.test', 'xs-oco-' || {v}, 'xs-client', 'xs-oco-' || {v}, '00000000-0000-4000-8000-0000000000a1', 'https://edge.example.test/mcp', {v}, sha256(convert_to('xs-oco-' || {v}, 'UTF8')), repeat('A', 43), 'none', 1)" }
+      ],
+      "values": {
+        "base": [],
+
+        "P0": [],
+
+        "1a": [],
+
+        "1b": [],
+
+        "1c": [],
+
+        "1d": [],
+
+        "1e": ["keycloak", "edge"],
+
+        "1f": [],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": ["builtin"]
+      }
+    },
+    "auth_budget.kind": {
+      "$comment": "Budget of sign-in attempts: password and second-factor code — counted in a series, like AD.",
+      "uses": [
+        { "db": "memory_control", "table": "auth_budget", "column": "kind", "constraint": "auth_budget_kind_check", "stage": "1e",
+          "probe": "INSERT INTO auth_budget (account_guid, kind) VALUES (gen_random_uuid(), {v})" }
+      ],
+      "values": {
+        "base": [],
+
+        "P0": [],
+
+        "1a": [],
+
+        "1b": [],
+
+        "1c": [],
+
+        "1d": [],
+
+        "1e": ["password", "code"],
+
+        "1f": [],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": []
+      }
+    },
+    "auth_pause.reason": {
+      "$comment": "Why external sign-in is paused: spraying, manually, the edge_kill switch.",
+      "uses": [
+        { "db": "memory_control", "table": "auth_pause", "column": "reason", "constraint": "auth_pause_reason_check", "stage": "1e",
+          "probe": "INSERT INTO auth_pause (id, instance_id, until, reason, by) VALUES (gen_random_uuid(), 'xs', now(), {v}, 'xs')" }
+      ],
+      "values": {
+        "base": [],
+
+        "P0": [],
+
+        "1a": [],
+
+        "1b": [],
+
+        "1c": [],
+
+        "1d": [],
+
+        "1e": ["spray", "manual", "kill"],
+
+        "1f": [],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": []
+      }
+    },
+    "external_notices.kind": {
+      "$comment": "Banners and e-mails of “External access” (contracts/edge/notices.json).",
+      "uses": [
+        { "db": "memory_control", "table": "external_notices", "column": "kind", "constraint": "external_notices_kind_check", "stage": "1e",
+          "probe": "INSERT INTO external_notices (id, instance_id, person_id, kind) VALUES (gen_random_uuid(), 'xs', '00000000-0000-4000-8000-0000000000a1', {v})" }
+      ],
+      "values": {
+        "base": [],
+
+        "P0": [],
+
+        "1a": [],
+
+        "1b": [],
+
+        "1c": [],
+
+        "1d": [],
+
+        "1e": ["optin_enabled", "optin_disabled", "connection_new", "connection_revoked_reuse", "refresh_reuse_rejected", "budget_exhausted", "idle_reminder", "idle_off", "ad_revoked"],
+
+        "1f": [],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": []
+      }
+    },
+    "external_access.disabled_code": {
+      "$comment": "Why “External access” is switched off. ad_link_changed — the AD account of the sign-in (external_access.ad_guid) is no longer the one linked to the profile.",
+      "uses": [
+        { "db": "memory_control", "table": "external_access", "column": "disabled_code", "constraint": "external_access_disabled_code_check", "stage": "P0",
+          "probe": "WITH p AS (INSERT INTO people (id, login, display_name, instance_id) VALUES (gen_random_uuid(), 'xs_dc_' || md5({v}) || '@example.test', 'Probe', 'xs') RETURNING id) INSERT INTO external_access (person_id, instance_id, disabled_at, disabled_by, disabled_code) SELECT id, 'xs', now(), 'admin:xs', {v} FROM p" }
+      ],
+      "values": {
+        "base": [],
+
+        "P0": ["self", "admin", "support", "idle", "person_inactive", "ad_disabled", "ad_deleted", "ad_expired", "ad_group", "ad_deny", "admin_no_webauthn", "compromise"],
+
+        "1a": [],
+
+        "1b": [],
+
+        "1c": [],
+
+        "1d": [],
+
+        "1e": ["ad_link_changed"],
+
+        "1f": [],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": []
+      }
+    },
+    "external_access.first_confirm": {
+      "$comment": "How the first enabling of “External access” was confirmed.",
+      "uses": [
+        { "db": "memory_control", "table": "external_access", "column": "first_confirm", "constraint": "external_access_first_confirm_check", "stage": "P0",
+          "probe": "WITH p AS (INSERT INTO people (id, login, display_name, instance_id) VALUES (gen_random_uuid(), 'xs_fc_' || md5({v}) || '@example.test', 'Probe', 'xs') RETURNING id) INSERT INTO external_access (person_id, instance_id, first_enabled_at, first_confirm) SELECT id, 'xs', now(), {v} FROM p" }
+      ],
+      "values": {
+        "base": [],
+
+        "P0": ["office", "support", "none"],
+
+        "1a": [],
+
+        "1b": [],
+
+        "1c": [],
+
+        "1d": [],
+
+        "1e": [],
+
+        "1f": [],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": []
+      }
+    },
+    "service_heartbeats.run_mode": {
+      "$comment": "Run mode of a service: the condition for enabling external flags — system or container.",
+      "uses": [
+        { "db": "memory_control", "table": "service_heartbeats", "column": "run_mode", "constraint": "service_heartbeats_run_mode_check", "stage": "P0",
+          "probe": "INSERT INTO service_heartbeats (instance_id, service, run_mode) VALUES ('xs', 'xs-probe-' || {v}, {v})" }
+      ],
+      "values": {
+        "base": [],
+
+        "P0": ["user", "system", "container"],
+
+        "1a": [],
+
+        "1b": [],
+
+        "1c": [],
+
+        "1d": [],
+
+        "1e": [],
+
+        "1f": [],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": []
+      }
+    },
+    "edge_connections.state": {
+      "uses": [
+        { "db": "memory_edge", "table": "edge_connections", "column": "state", "constraint": "edge_connections_state_check", "stage": "P0",
+          "probe": "INSERT INTO edge_connections (connection_id, person_id, client_id, client_kind, resource, grant_id, challenge_hash, code_hash, mfa_level, state, expires_at, idle_expires_at) VALUES (gen_random_uuid(), gen_random_uuid(), 'xs-state', 'local_other', 'https://edge.example.test/mcp', 'xs-grant', 'xs-challenge', sha256(convert_to('xs-state-' || {v}, 'UTF8')), 'none', {v}, now() + interval '1 day', now() + interval '1 day')" }
+      ],
+      "values": {
+        "base": [],
+
+        "P0": ["active", "revoked"],
+
+        "1a": [],
+
+        "1b": [],
+
+        "1c": [],
+
+        "1d": [],
+
+        "1e": [],
+
+        "1f": [],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": []
+      }
+    },
+    "edge_tokens.kind": {
+      "uses": [
+        { "db": "memory_edge", "table": "edge_tokens", "column": "kind", "constraint": "edge_tokens_kind_check", "stage": "P0",
+          "probe": "WITH c AS (INSERT INTO edge_connections (connection_id, person_id, client_id, client_kind, resource, grant_id, challenge_hash, code_hash, mfa_level, expires_at, idle_expires_at) VALUES (gen_random_uuid(), gen_random_uuid(), 'xs-token', 'local_other', 'https://edge.example.test/mcp', 'xs-grant', 'xs-challenge', sha256(convert_to('xs-token-' || {v}, 'UTF8')), 'none', now() + interval '1 day', now() + interval '1 day') RETURNING connection_id) INSERT INTO edge_tokens (hash, kind, connection_id, expires_at) SELECT sha256(convert_to('xs-token-' || {v}, 'UTF8')), {v}, connection_id, now() + interval '1 day' FROM c" }
+      ],
+      "values": {
+        "base": [],
+
+        "P0": ["at", "rt"],
+
+        "1a": [],
+
+        "1b": [],
+
+        "1c": [],
+
+        "1d": [],
+
+        "1e": [],
+
+        "1f": [],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": []
+      }
+    },
+    "admin_sessions.role": {
+      "$comment": "Role of an administrator session.",
+      "uses": [
+        { "db": "memory_control", "table": "admin_sessions", "column": "role", "constraint": "admin_sessions_role_check", "stage": "1a",
+          "probe": "INSERT INTO admin_sessions (id, instance_id, token_hash, local_login, ip, expires_at, role, auth_method) VALUES (gen_random_uuid(), 'xs', sha256(convert_to('xs-role-' || {v}, 'UTF8')), 'xs', '127.0.0.1', now() + interval '1 hour', {v}, 'local')" }
+      ],
+      "values": {
+        "base": [],
+
+        "P0": [],
+
+        "1a": ["memory_admin", "security_auditor"],
+
+        "1b": [],
+
+        "1c": [],
+
+        "1d": [],
+
+        "1e": [],
+
+        "1f": [],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": []
+      }
+    },
+    "admin_sessions.auth_method": {
+      "$comment": "How the administrator signed in.",
+      "uses": [
+        { "db": "memory_control", "table": "admin_sessions", "column": "auth_method", "constraint": "admin_sessions_auth_method_check", "stage": "1a",
+          "probe": "INSERT INTO admin_sessions (id, instance_id, token_hash, local_login, ip, expires_at, role, auth_method) VALUES (gen_random_uuid(), 'xs', sha256(convert_to('xs-am-' || {v}, 'UTF8')), 'xs', '127.0.0.1', now() + interval '1 hour', 'memory_admin', {v})" }
+      ],
+      "values": {
+        "base": [],
+
+        "P0": [],
+
+        "1a": ["sso", "sso_webauthn", "sso_breakglass", "local", "local_breakglass", "tool"],
+
+        "1b": [],
+
+        "1c": [],
+
+        "1d": [],
+
+        "1e": [],
+
+        "1f": [],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": []
+      }
+    },
+    "admin_sessions.revoked_reason": {
+      "$comment": "Why the administrator session was revoked.",
+      "uses": [
+        { "db": "memory_control", "table": "admin_sessions", "column": "revoked_reason", "constraint": "admin_sessions_revoked_reason_check", "stage": "1a",
+          "probe": "INSERT INTO admin_sessions (id, instance_id, token_hash, local_login, ip, expires_at, role, auth_method, revoked_at, revoked_reason) VALUES (gen_random_uuid(), 'xs', sha256(convert_to('xs-rr-' || {v}, 'UTF8')), 'xs', '127.0.0.1', now() + interval '1 hour', 'memory_admin', 'local', now(), {v})" }
+      ],
+      "values": {
+        "base": [],
+
+        "P0": [],
+
+        "1a": ["logout", "logout_all", "admin_disabled", "expired_idle", "ip_changed", "role_lost", "breakglass_closed", "incident", "parent_revoked", "anchors", "security_mode"],
+
+        "1b": [],
+
+        "1c": [],
+
+        "1d": [],
+
+        "1e": [],
+
+        "1f": [],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": []
+      }
+    },
+    "admin_webauthn_credentials.alg": {
+      "$comment": "Algorithm of a WebAuthn key per COSE: -7 ES256, -8 EdDSA, -257 RS256 (the column is integer, the values are strings).",
+      "uses": [
+        { "db": "memory_control", "table": "admin_webauthn_credentials", "column": "alg", "constraint": "admin_webauthn_credentials_alg_check", "stage": "1a",
+          "probe": "INSERT INTO admin_webauthn_credentials (id, instance_id, person_id, credential_id, public_key, user_handle, alg) VALUES (gen_random_uuid(), 'xs', '00000000-0000-4000-8000-0000000000a1', convert_to('xs-alg-' || {v}, 'UTF8'), decode('00', 'hex'), decode('00', 'hex'), {v})" }
+      ],
+      "values": {
+        "base": [],
+
+        "P0": [],
+
+        "1a": ["-7", "-8", "-257"],
+
+        "1b": [],
+
+        "1c": [],
+
+        "1d": [],
+
+        "1e": [],
+
+        "1f": [],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": []
+      }
+    },
+    "admin_webauthn_credentials.disabled_reason": {
+      "$comment": "Why a WebAuthn key is disabled.",
+      "uses": [
+        { "db": "memory_control", "table": "admin_webauthn_credentials", "column": "disabled_reason", "constraint": "admin_webauthn_credentials_disabled_reason_check", "stage": "1a",
+          "probe": "INSERT INTO admin_webauthn_credentials (id, instance_id, person_id, credential_id, public_key, user_handle, alg, disabled_at, disabled_reason) VALUES (gen_random_uuid(), 'xs', '00000000-0000-4000-8000-0000000000a1', convert_to('xs-dr-' || {v}, 'UTF8'), decode('00', 'hex'), decode('00', 'hex'), -7, now(), {v})" }
+      ],
+      "values": {
+        "base": [],
+
+        "P0": [],
+
+        "1a": ["owner", "admin", "clone", "breakglass", "person_inactive"],
+
+        "1b": [],
+
+        "1c": [],
+
+        "1d": [],
+
+        "1e": [],
+
+        "1f": [],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": []
+      }
+    },
+    "admin_approvals.decided_role": {
+      "$comment": "Role of the person who signed a request.",
+      "uses": [
+        { "db": "memory_control", "table": "admin_approvals", "column": "decided_role", "constraint": "admin_approvals_decided_role_check", "stage": "1a",
+          "probe": "INSERT INTO admin_approvals (id, instance_id, action, summary, method, path, payload_hash, requested_by, requested_local, requested_session, expires_at, decided_role) VALUES (gen_random_uuid(), 'xs', 'xs.probe', 'probe', 'POST', '/xs', decode('00', 'hex'), '00000000-0000-4000-8000-0000000000a1', 'xs', gen_random_uuid(), now() + interval '1 hour', {v})" }
+      ],
+      "values": {
+        "base": [],
+
+        "P0": [],
+
+        "1a": ["memory_admin", "security_auditor"],
+
+        "1b": [],
+
+        "1c": [],
+
+        "1d": [],
+
+        "1e": [],
+
+        "1f": [],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": []
+      }
+    },
+    "admin_approvals.decision": {
+      "$comment": "Decision on a second-signature request. basic_auto — a second-factor reset by one administrator in basic: only approval_basic_auto sets it, approval_consume accepts it only in basic.",
+      "uses": [
+        { "db": "memory_control", "table": "admin_approvals", "column": "decision", "constraint": "admin_approvals_decision_check", "stage": "1a",
+          "probe": "INSERT INTO admin_approvals (id, instance_id, action, summary, method, path, payload_hash, requested_by, requested_local, requested_session, expires_at, decided_by, decision) VALUES (gen_random_uuid(), 'xs', 'xs.probe', 'probe', 'POST', '/xs', decode('00', 'hex'), '00000000-0000-4000-8000-0000000000a1', 'xs', gen_random_uuid(), now() + interval '1 hour', gen_random_uuid(), {v})" }
+      ],
+      "values": {
+        "base": [],
+
+        "P0": [],
+
+        "1a": ["approved", "rejected"],
+
+        "1b": [],
+
+        "1c": [],
+
+        "1d": [],
+
+        "1e": [],
+
+        "1f": ["basic_auto"],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": []
+      }
+    },
+    "anchors_applied.kind": {
+      "$comment": "Kind of an anchors document: edge — trust-anchors.json, inner — trust-anchors-inner.json.",
+      "uses": [
+        { "db": "memory_control", "table": "anchors_applied", "column": "kind", "constraint": "anchors_applied_kind_check", "stage": "1a",
+          "probe": "INSERT INTO anchors_applied (instance_id, kind, serial, applied_via, sha256, signers) VALUES ('xs', {v}, 1, 'start', decode('00', 'hex'), '{}')" }
+      ],
+      "values": {
+        "base": [],
+
+        "P0": [],
+
+        "1a": ["edge", "inner"],
+
+        "1b": [],
+
+        "1c": [],
+
+        "1d": [],
+
+        "1e": [],
+
+        "1f": [],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": []
+      }
+    },
+    "anchors_applied.applied_via": {
+      "$comment": "How the anchors were applied.",
+      "uses": [
+        { "db": "memory_control", "table": "anchors_applied", "column": "applied_via", "constraint": "anchors_applied_applied_via_check", "stage": "1a",
+          "probe": "INSERT INTO anchors_applied (instance_id, kind, serial, applied_via, sha256, signers) VALUES ('xs', 'inner', abs(hashtext('xs-via:' || {v}))::bigint + 10, {v}, decode('00', 'hex'), '{}')" }
+      ],
+      "values": {
+        "base": [],
+
+        "P0": [],
+
+        "1a": ["start", "sighup", "cli"],
+
+        "1b": [],
+
+        "1c": [],
+
+        "1d": [],
+
+        "1e": [],
+
+        "1f": [],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": []
+      }
+    },
+    "anchors_applied.mfa_mode_min": {
+      "$comment": "Lower bound of the MFA mode from the anchors.",
+      "uses": [
+        { "db": "memory_control", "table": "anchors_applied", "column": "mfa_mode_min", "constraint": "anchors_applied_mfa_mode_min_check", "stage": "1a",
+          "probe": "INSERT INTO anchors_applied (instance_id, kind, serial, applied_via, mfa_mode_min, sha256, signers) VALUES ('xs', 'edge', abs(hashtext('xs-mfa:' || {v}))::bigint + 10, 'start', {v}, decode('00', 'hex'), '{}')" }
+      ],
+      "values": {
+        "base": [],
+
+        "P0": [],
+
+        "1a": ["off", "optional", "required"],
+
+        "1b": [],
+
+        "1c": [],
+
+        "1d": [],
+
+        "1e": [],
+
+        "1f": [],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": []
+      }
+    },
+    "anchors_applied.security_mode_min": {
+      "$comment": "Floor of the security mode from the internal anchors: the effective mode is the stricter of security.mode and the floor.",
+      "uses": [
+        { "db": "memory_control", "table": "anchors_applied", "column": "security_mode_min", "constraint": "anchors_applied_security_mode_min_check", "stage": "1a",
+          "probe": "INSERT INTO anchors_applied (instance_id, kind, serial, applied_via, security_mode_min, sha256, signers) VALUES ('xs', 'inner', abs(hashtext('xs-smm:' || {v}))::bigint + 10, 'start', {v}, decode('00', 'hex'), '{}')" }
+      ],
+      "values": {
+        "base": [],
+
+        "P0": [],
+
+        "1a": ["basic", "advanced"],
+
+        "1b": [],
+
+        "1c": [],
+
+        "1d": [],
+
+        "1e": [],
+
+        "1f": [],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": []
+      }
+    },
+    "anchors_applied.retire_target": {
+      "$comment": "“Retirement document”: the end of the internal anchors with the target basic.",
+      "uses": [
+        { "db": "memory_control", "table": "anchors_applied", "column": "retire_target", "constraint": "anchors_applied_retire_target_check", "stage": "1a",
+          "probe": "INSERT INTO anchors_applied (instance_id, kind, serial, applied_via, retire_target, sha256, signers) VALUES ('xs', 'inner', abs(hashtext('xs-rt:' || {v}))::bigint + 10, 'start', {v}, decode('00', 'hex'), '{}')" }
+      ],
+      "values": {
+        "base": [],
+
+        "P0": [],
+
+        "1a": ["basic"],
+
+        "1b": [],
+
+        "1c": [],
+
+        "1d": [],
+
+        "1e": [],
+
+        "1f": [],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": []
+      }
+    },
+    "edge_prepared.marked_via": {
+      "$comment": "Who set the “edge prepared” mark: the host before the first suitable host_mode_facts event, or the gateway at start-up from the log.",
+      "uses": [
+        { "db": "memory_control", "table": "edge_prepared", "column": "marked_via", "constraint": "edge_prepared_marked_via_check", "stage": "1a",
+          "probe": "INSERT INTO edge_prepared (instance_id, marked_via) VALUES ('xs-' || {v}, {v})" }
+      ],
+      "values": {
+        "base": [],
+
+        "P0": [],
+
+        "1a": ["host_facts", "gateway_start"],
+
+        "1b": [],
+
+        "1c": [],
+
+        "1d": [],
+
+        "1e": [],
+
+        "1f": [],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": []
+      }
+    },
+    "breakglass_windows.reason_code": {
+      "$comment": "Why emergency access was opened.",
+      "uses": [
+        { "db": "memory_control", "table": "breakglass_windows", "column": "reason_code", "constraint": "breakglass_windows_reason_code_check", "stage": "1a",
+          "probe": "INSERT INTO breakglass_windows (id, instance_id, expires_at, reason_code) VALUES (gen_random_uuid(), 'xs', now() + interval '1 hour', {v})" }
+      ],
+      "values": {
+        "base": [],
+
+        "P0": [],
+
+        "1a": ["keys_lost", "sso_down", "directory_down", "incident", "drill"],
+
+        "1b": [],
+
+        "1c": [],
+
+        "1d": [],
+
+        "1e": [],
+
+        "1f": [],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": []
+      }
+    },
+    "breakglass_windows.closed_via": {
+      "$comment": "How the emergency access window was closed.",
+      "uses": [
+        { "db": "memory_control", "table": "breakglass_windows", "column": "closed_via", "constraint": "breakglass_windows_closed_via_check", "stage": "1a",
+          "probe": "INSERT INTO breakglass_windows (id, instance_id, expires_at, reason_code, closed_at, closed_via) VALUES (gen_random_uuid(), 'xs', now() + interval '1 hour', 'drill', now(), {v})" }
+      ],
+      "values": {
+        "base": [],
+
+        "P0": [],
+
+        "1a": ["expired", "cli", "admin"],
+
+        "1b": [],
+
+        "1c": [],
+
+        "1d": [],
+
+        "1e": [],
+
+        "1f": [],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": []
+      }
+    },
+    "admin_alerts.level": {
+      "$comment": "Alert level of the admin_alerts core: high, medium; page, metric are added.",
+      "uses": [
+        { "db": "memory_control", "table": "admin_alerts", "column": "level", "constraint": "admin_alerts_level_check", "stage": "1a",
+          "probe": "INSERT INTO admin_alerts (id, instance_id, level, code, summary) VALUES (gen_random_uuid(), 'xs', {v}, 'xs_probe', 'probe')" }
+      ],
+      "values": {
+        "base": [],
+
+        "P0": [],
+
+        "1a": ["high", "medium"],
+
+        "1b": [],
+
+        "1c": [],
+
+        "1d": ["page", "metric"],
+
+        "1e": [],
+
+        "1f": [],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": []
+      }
+    },
+    "admin_alerts.status": {
+      "$comment": "State of an admin_alerts core alert: open — open, acked — “Acknowledged” (only with the time acked_at — the check admin_alerts_acked_check), closed — closed by an administrator or a detector. The column is created by file 12.",
+      "uses": [
+        { "db": "memory_control", "table": "admin_alerts", "column": "status", "constraint": "admin_alerts_status_check", "stage": "1d",
+          "probe": "INSERT INTO admin_alerts (id, instance_id, level, code, summary, status, acked_at) VALUES (gen_random_uuid(), 'xs', 'medium', 'xs_probe', 'probe', {v}, CASE WHEN {v} = 'acked' THEN now() END)" }
+      ],
+      "values": {
+        "base": [],
+
+        "P0": [],
+
+        "1a": [],
+
+        "1b": [],
+
+        "1c": [],
+
+        "1d": ["open", "acked", "closed"],
+
+        "1e": [],
+
+        "1f": [],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": []
+      }
+    },
+    "obo_read_consents.revoked_by": {
+      "$comment": "Who or what revoked the consent to read “on behalf of”.",
+      "uses": [
+        { "db": "memory_control", "table": "obo_read_consents", "column": "revoked_by", "constraint": "obo_read_consents_revoked_by_check", "stage": "1a",
+          "probe": "INSERT INTO obo_read_consents (id, instance_id, person_id, service_id, expires_at, granted_session, revoked_at, revoked_by) VALUES (gen_random_uuid(), 'xs', '00000000-0000-4000-8000-0000000000a1', gen_random_uuid(), now() + interval '1 day', gen_random_uuid(), now(), {v})" }
+      ],
+      "values": {
+        "base": [],
+
+        "P0": [],
+
+        "1a": ["person", "admin", "service_off", "person_inactive", "expired"],
+
+        "1b": [],
+
+        "1c": [],
+
+        "1d": [],
+
+        "1e": [],
+
+        "1f": [],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": []
+      }
+    },
+    "audit_ship_state.sink": {
+      "$comment": "Sink for shipping the log outside.",
+      "uses": [
+        { "db": "memory_control", "table": "audit_ship_state", "column": "sink", "constraint": "audit_ship_state_sink_check", "stage": "1a",
+          "probe": "INSERT INTO audit_ship_state (instance_id, sink) VALUES ('xs', {v})" }
+      ],
+      "values": {
+        "base": [],
+
+        "P0": [],
+
+        "1a": ["file", "syslog_tls"],
+
+        "1b": [],
+
+        "1c": [],
+
+        "1d": [],
+
+        "1e": [],
+
+        "1f": [],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": []
+      }
+    },
+    "security_mode": {
+      "$comment": "Security mode: the history of changes security_mode_changes — from which mode to which. The values of the security.mode setting are checked by the boundary of edge-settings.ts, not by CHECK.",
+      "uses": [
+        { "db": "memory_control", "table": "security_mode_changes", "column": "from_mode", "constraint": "security_mode_changes_from_mode_check", "stage": "1a",
+          "probe": "INSERT INTO security_mode_changes (id, instance_id, from_mode, to_mode) VALUES (gen_random_uuid(), 'xs', {v}, 'basic')" },
+        { "db": "memory_control", "table": "security_mode_changes", "column": "to_mode", "constraint": "security_mode_changes_to_mode_check", "stage": "1a",
+          "probe": "INSERT INTO security_mode_changes (id, instance_id, from_mode, to_mode) VALUES (gen_random_uuid(), 'xs', 'basic', {v})" }
+      ],
+      "values": {
+        "base": [],
+
+        "P0": [],
+
+        "1a": ["basic", "advanced"],
+
+        "1b": [],
+
+        "1c": [],
+
+        "1d": [],
+
+        "1e": [],
+
+        "1f": [],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": []
+      }
+    },
+    "security_mode_pending.cancelled_via": {
+      "$comment": "Who canceled the request to return to basic: an administrator in the panel, the command line on the server, a mode change.",
+      "uses": [
+        { "db": "memory_control", "table": "security_mode_pending", "column": "cancelled_via", "constraint": "security_mode_pending_cancelled_via_check", "stage": "1a",
+          "probe": "INSERT INTO security_mode_pending (id, instance_id, requested_by, reason, not_before, cancelled_at, cancelled_via) VALUES (gen_random_uuid(), 'xs', '00000000-0000-4000-8000-0000000000a1', 'probe of the security mode enumerations', now(), now(), {v})" }
+      ],
+      "values": {
+        "base": [],
+
+        "P0": [],
+
+        "1a": ["admin", "cli", "mode_changed"],
+
+        "1b": [],
+
+        "1c": [],
+
+        "1d": [],
+
+        "1e": [],
+
+        "1f": [],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": []
+      }
+    },
+    "security_attestations.kind": {
+      "$comment": "Confirmations by people: a weakened core key, binding a key to a device, IT items, branch protection, human signers, the DOCKER-USER filter, destruction of machine keys, a host without docker and sudo; the bridge host, a separate edge proxy, the release key held by people (“Completion”), the hostile-bridge test passed.",
+      "uses": [
+        { "db": "memory_control", "table": "security_attestations", "column": "kind", "constraint": "security_attestations_kind_check", "stage": "1a",
+          "probe": "INSERT INTO security_attestations (id, instance_id, kind, subject, attested_by) VALUES (gen_random_uuid(), 'xs', {v}, 'xs-probe', '00000000-0000-4000-8000-0000000000a1')" }
+      ],
+      "values": {
+        "base": [],
+
+        "P0": [],
+
+        "1a": ["profile_weakening", "device_binding", "it_instructions", "gitlab_protected", "human_signer", "docker_user_filter", "machine_keys_destroyed", "host_hardened", "bridge_vm", "edge_proxy_dedicated", "release_signers_human", "e5_hostile_bridge"],
+
+        "1b": [],
+
+        "1c": [],
+
+        "1d": [],
+
+        "1e": [],
+
+        "1f": [],
+
+        "S2-3": [],
+
+        "4": [],
+
+        "E2": [],
+
+        "5": []
+      }
+    }
+  }
+}

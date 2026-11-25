@@ -1,0 +1,474 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://memory.internal/document-engine/schemas/DocModel.json",
+  "title": "DocModel",
+  "description": "Structured document model: the output of the built-in parsers and the preferred result of the document-processing module. The core renders it into the dialect with one shared renderer, which applies the hidden-content policy and the content locale. Planned, not current: no code produces or renders it yet.",
+  "$comment": "The model has no place for the elements that the policy excludes from the text (comments, office headers and footers, document properties, hidden text, deleted revisions, PDF annotations, attachments and form fields), so no renderer can leak them: unknown fields are rejected at every level. Text fields hold plain text, not Markdown; the renderer escapes it. Engines that return a DocModel MUST NOT also return `markdown`.",
+  "type": "object",
+  "required": ["containers"],
+  "additionalProperties": false,
+  "properties": {
+    "containers": {
+      "description": "Pages of a PDF, slides of a presentation, sheets of a spreadsheet, or one file-level body of a word-processing document, in source order with increasing numbers. One container gives one unit and, for pages and slides, one page anchor.",
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/Container" }
+    }
+  },
+  "oneOf": [
+    { "properties": { "containers": { "items": { "properties": { "kind": { "const": "page" } } } } } },
+    { "properties": { "containers": { "items": { "properties": { "kind": { "const": "slide" } } } } } },
+    { "properties": { "containers": { "items": { "properties": { "kind": { "const": "sheet" } } } } } },
+    { "properties": { "containers": { "maxItems": 1, "items": { "properties": { "kind": { "const": "file" } } } } } }
+  ],
+  "$defs": {
+    "Container": {
+      "description": "One page, slide, sheet or file-level body. The unit derived from it has the same `kind`, `number`, `method`, `hidden` and `warnings`; `images` is the number of figure blocks. `chars` is computed from the container's plain-text fields (block texts, list items, table cells, speaker-note paragraphs, note texts, the slide `title`; not the sheet `title` and not figure captions), never from the rendered text, so anchors, headings and markers that the renderer adds never count; a container with `blocks: []` and no title has `chars` = 0. The page number of a block is the number of its page or slide container; blocks of sheets and of a file-level body have no page.",
+      "type": "object",
+      "required": ["kind", "number", "method", "blocks"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "$ref": "ConversionUnit.json#/$defs/UnitKind" },
+        "number": {
+          "description": "Page, slide or sheet number, counted from 1; `null` for a file-level body.",
+          "type": ["integer", "null"],
+          "minimum": 1
+        },
+        "hidden": {
+          "description": "`true` for a hidden slide or sheet. The renderer keeps it in the text with the hidden marker.",
+          "type": "boolean"
+        },
+        "title": {
+          "description": "Slide title or sheet name. The renderer puts it into the slide or sheet heading, so it MUST NOT be repeated as a heading block. Required for a sheet; absent for a page or a file-level body.",
+          "type": ["string", "null"],
+          "minLength": 1
+        },
+        "method": { "$ref": "ConversionUnit.json#/$defs/Method" },
+        "warnings": {
+          "description": "Warning codes of the derived unit.",
+          "type": "array",
+          "items": { "$ref": "ConversionUnit.json#/$defs/WarningCode" }
+        },
+        "blocks": {
+          "description": "Blocks in source order. May be empty; with no title either, the unit then has `chars` = 0 and contributes no text to extraction.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/Block" }
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "kind": { "const": "file" } }, "required": ["kind"] },
+          "then": { "properties": { "number": { "type": "null" } } },
+          "else": { "properties": { "number": { "type": "integer" } } }
+        },
+        {
+          "if": { "properties": { "kind": { "enum": ["page", "file"] } }, "required": ["kind"] },
+          "then": { "properties": { "hidden": { "const": false }, "title": false } }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "sheet" } }, "required": ["kind"] },
+          "then": { "required": ["title"], "properties": { "title": { "type": "string" } } }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "slide" } }, "required": ["kind"] },
+          "then": true,
+          "else": { "properties": { "blocks": { "items": { "not": { "$ref": "#/$defs/SpeakerNotes" } } } } }
+        }
+      ]
+    },
+    "Block": {
+      "oneOf": [
+        { "$ref": "#/$defs/Heading" },
+        { "$ref": "#/$defs/Paragraph" },
+        { "$ref": "#/$defs/List" },
+        { "$ref": "#/$defs/Table" },
+        { "$ref": "#/$defs/Figure" },
+        { "$ref": "#/$defs/SpeakerNotes" },
+        { "$ref": "#/$defs/Note" }
+      ]
+    },
+    "RichText": {
+      "description": "Plain text, or a sequence of plain-text runs and note references. A note reference renders as `[^<id>]` at its position.",
+      "oneOf": [
+        { "type": "string" },
+        {
+          "type": "array",
+          "minItems": 1,
+          "items": { "oneOf": [{ "type": "string" }, { "$ref": "#/$defs/NoteRef" }] }
+        }
+      ]
+    },
+    "NoteRef": {
+      "type": "object",
+      "required": ["note_ref"],
+      "additionalProperties": false,
+      "properties": {
+        "note_ref": { "description": "Id of a `note` block in the same container.", "$ref": "#/$defs/NoteId" }
+      }
+    },
+    "NoteId": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,32}$" },
+    "Heading": {
+      "description": "An ATX heading.",
+      "type": "object",
+      "required": ["type", "level", "text"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "heading" },
+        "level": { "type": "integer", "minimum": 1, "maximum": 6 },
+        "text": { "$ref": "#/$defs/RichText" }
+      }
+    },
+    "Paragraph": {
+      "type": "object",
+      "required": ["type", "text"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "paragraph" },
+        "text": { "$ref": "#/$defs/RichText" }
+      }
+    },
+    "List": {
+      "description": "An ordered or unordered list.",
+      "type": "object",
+      "required": ["type", "ordered", "items"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "list" },
+        "ordered": { "type": "boolean" },
+        "items": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/ListItem" } }
+      }
+    },
+    "ListItem": {
+      "type": "object",
+      "required": ["text"],
+      "additionalProperties": false,
+      "properties": {
+        "text": { "$ref": "#/$defs/RichText" },
+        "items": {
+          "description": "Nested list items of the same kind.",
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/ListItem" }
+        }
+      }
+    },
+    "Table": {
+      "description": "A table, rendered as a GFM pipe table. Hidden rows and columns of a spreadsheet stay in the model, flagged as hidden; the renderer marks them. With `en` markers the first cell of a hidden row gets the suffix ` (hidden row)`, and the cell of a hidden column in the first row gets the suffix ` (hidden column)`. The `ru` strings are not defined yet.",
+      "type": "object",
+      "required": ["type", "header_row", "rows"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "table" },
+        "header_row": { "description": "`true` when the first row is a header row.", "type": "boolean" },
+        "rows": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/Row" } },
+        "hidden_columns": {
+          "description": "Indexes (from 0) of hidden columns.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "Row": {
+      "type": "object",
+      "required": ["cells"],
+      "additionalProperties": false,
+      "properties": {
+        "cells": { "type": "array", "items": { "$ref": "#/$defs/RichText" } },
+        "hidden": { "description": "`true` for a hidden row.", "type": "boolean" }
+      }
+    },
+    "Figure": {
+      "description": "A picture. Memory stores no pictures: the renderer writes the figure marker with the caption.",
+      "type": "object",
+      "required": ["type", "caption"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "figure" },
+        "caption": {
+          "description": "The picture's alternative text, trimmed; `null` when there is none.",
+          "type": ["string", "null"],
+          "minLength": 1
+        }
+      }
+    },
+    "SpeakerNotes": {
+      "description": "Speaker notes of a slide; only in slide containers, after the slide content.",
+      "type": "object",
+      "required": ["type", "paragraphs"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "speaker_notes" },
+        "paragraphs": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "Note": {
+      "description": "A footnote or an endnote. The renderer writes it as `[^<id>]: <text>` after the body.",
+      "type": "object",
+      "required": ["type", "note_kind", "id", "text"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "note" },
+        "note_kind": { "enum": ["footnote", "endnote"] },
+        "id": { "$ref": "#/$defs/NoteId" },
+        "text": { "$ref": "#/$defs/RichText" }
+      }
+    }
+  },
+  "examples": [
+    {
+      "containers": [
+        {
+          "kind": "page",
+          "number": 1,
+          "method": "pdf_text",
+          "blocks": [
+            {
+              "type": "heading",
+              "level": 1,
+              "text": "Supply agreement"
+            },
+            {
+              "type": "paragraph",
+              "text": "The supplier delivers the goods to the central warehouse."
+            }
+          ]
+        },
+        {
+          "kind": "page",
+          "number": 2,
+          "method": "pdf_text",
+          "blocks": [
+            {
+              "type": "heading",
+              "level": 2,
+              "text": "Delivery terms"
+            },
+            {
+              "type": "paragraph",
+              "text": "Delivery takes place within ten working days after the order."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "containers": [
+        {
+          "kind": "slide",
+          "number": 1,
+          "hidden": false,
+          "title": "Project plan",
+          "method": "ooxml",
+          "blocks": [
+            {
+              "type": "paragraph",
+              "text": "Kick-off in March"
+            },
+            {
+              "type": "paragraph",
+              "text": "Pilot in two teams"
+            }
+          ]
+        },
+        {
+          "kind": "slide",
+          "number": 2,
+          "hidden": true,
+          "title": "Draft ideas",
+          "method": "ooxml",
+          "blocks": [
+            {
+              "type": "paragraph",
+              "text": "Ideas that are not final yet."
+            }
+          ]
+        },
+        {
+          "kind": "slide",
+          "number": 3,
+          "hidden": false,
+          "title": "Next steps",
+          "method": "ooxml",
+          "blocks": [
+            {
+              "type": "paragraph",
+              "text": "Agree the pilot scope."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "containers": [
+        {
+          "kind": "sheet",
+          "number": 1,
+          "hidden": false,
+          "title": "Budget",
+          "method": "ooxml",
+          "blocks": [
+            {
+              "type": "table",
+              "header_row": true,
+              "rows": [
+                {
+                  "cells": [
+                    "Item",
+                    "Cost"
+                  ]
+                },
+                {
+                  "cells": [
+                    "Licences",
+                    "1200"
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "sheet",
+          "number": 2,
+          "hidden": true,
+          "title": "Rates",
+          "method": "ooxml",
+          "blocks": [
+            {
+              "type": "table",
+              "header_row": true,
+              "rows": [
+                {
+                  "cells": [
+                    "Role",
+                    "Rate"
+                  ]
+                },
+                {
+                  "cells": [
+                    "Analyst",
+                    "50"
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "containers": [
+        {
+          "kind": "file",
+          "number": null,
+          "method": "ooxml",
+          "blocks": [
+            {
+              "type": "heading",
+              "level": 1,
+              "text": "Supply terms"
+            },
+            {
+              "type": "paragraph",
+              "text": "The supplier delivers the goods within 10 days."
+            },
+            {
+              "type": "heading",
+              "level": 2,
+              "text": "Payment"
+            },
+            {
+              "type": "paragraph",
+              "text": "Payment is due within 30 days of delivery."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "containers": [
+        {
+          "kind": "sheet",
+          "number": 1,
+          "hidden": false,
+          "title": "Staff costs",
+          "method": "ooxml",
+          "blocks": [
+            {
+              "type": "table",
+              "header_row": true,
+              "hidden_columns": [
+                2
+              ],
+              "rows": [
+                {
+                  "cells": [
+                    "Team",
+                    "Cost",
+                    "Internal code"
+                  ]
+                },
+                {
+                  "cells": [
+                    "Support",
+                    "300",
+                    "A-1"
+                  ]
+                },
+                {
+                  "cells": [
+                    "Old team",
+                    "0",
+                    "Z-9"
+                  ],
+                  "hidden": true
+                }
+              ]
+            },
+            {
+              "type": "figure",
+              "caption": "Cost by team"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "containers": [
+        {
+          "kind": "slide",
+          "number": 1,
+          "hidden": false,
+          "method": "ooxml",
+          "blocks": []
+        },
+        {
+          "kind": "slide",
+          "number": 2,
+          "hidden": false,
+          "method": "ooxml",
+          "blocks": []
+        }
+      ]
+    },
+    {
+      "containers": [
+        {
+          "kind": "page",
+          "number": 1,
+          "method": "ocr_unavailable",
+          "warnings": [
+            "ocr_not_configured"
+          ],
+          "blocks": [
+            {
+              "type": "figure",
+              "caption": null
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

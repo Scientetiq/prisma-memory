@@ -1,0 +1,61 @@
+import { searchQuality as qualityText, SQ_TEXT } from "../search-quality/ru";
+import { pluralRu } from "../../i18n/core";
+import type { Messages } from "../../i18n/core";
+import type * as en from "./en";
+
+export const searchQualityPage: Messages<typeof en.searchQualityPage> = {
+  searchQuality: "Качество поиска",
+  searches: "Поисков",
+  nothingFound: "Ничего не нашлось",
+  firstResult: "Первая находка",
+  amongTheFirstThree: "Из первых трёх",
+  nothingOpened: "Ничего не открыли",
+  rephrased: "Спросили иначе",
+  positionOfFirstOpenedResult: "Место первой открытой",
+  resultsLaterCorrected: "Найденное потом исправили",
+  markedOutdated: "Отметили устаревшим",
+  markedUseful: "Отметили полезным",
+  weekNote: "примечание к неделе",
+  searchesInThePeriod: "Поисков за период",
+  openedTheFirstResult: "Открыли первую находку",
+  openedOneOfTheFirstThree: "Открыли одну из первых трёх",
+  toSeeWhetherPeopleUseMemoryAtAll: "{value}. {value2} Пользуются ли памятью вообще — <link1>Отчёт → Внедрение</link1>.",
+  recalculateNow: "Пересчитать сейчас",
+  arrowsCompareWithThePreviousWeek: "; стрелки — к прошлой неделе",
+  weekOf: "За неделю {value}{value2}{value3}:",
+  searchesInTheWeek: "Поисков за неделю",
+  immediatelyRephrased: "Сразу спросили иначе",
+  explicitlyLinked: "Связано точно",
+  largestChange: "Больше всего изменилось: {value}.",
+  explicitlyLinked2: "«Связано точно»: {value}",
+  byWeek: "По неделям",
+  howManyWeeksToShow: "Сколько недель показать",
+  week: "Неделя",
+  more: "ещё",
+  weeks3: "Недель",
+  completedWeeks: "Закончившихся недель",
+  breakdowns: "Разрезы",
+  theLastCompletedWeeksUsingOnlyWeeksWith: (value: string | number) => `За последние 4 закончившиеся недели (${value}), только по неделям, где искали достаточно людей. Значения, где людей мало, сведены в «остальные».`,
+  theLastCompletedWeeks: "За последние 4 закончившиеся недели.",
+  value: "Значение",
+  frequentQueriesWithNoResults: "Частые запросы без результата",
+  query: "Запрос",
+  people: "Людей",
+  weekCount: (n: number) => `${n} ${pluralRu(n, ["неделя", "недели", "недель"])}`,
+
+  weekHeading: (range: string, current: boolean, previous: boolean): string => `За неделю ${range}${current ? " (неделя ещё идёт — числа появятся в понедельник)" : ""}${previous ? "; стрелки — к прошлой неделе" : ""}:`,
+  weekNotes: (current: boolean, correctionDay: string | null, rules: boolean): string => [current ? SQ_TEXT.current : null, correctionDay ? qualityText.corrections(correctionDay) : null, rules ? SQ_TEXT.rules : null].filter(Boolean).join("; "),
+  pooledSummary: (range: string, weeks: number): string => `${range}. ${qualityText.pooledLead(weeks)}`,
+  smallWeekSummary: (range: string, min: number): string => `${range}: ${qualityText.smallWeek(min)}.`,
+  emptyGuidance: (min: number): string => `${qualityText.numbersAppear(min)}. ${qualityText.poolWait} Пользуются ли памятью вообще — <link1>Отчёт → Внедрение</link1>.`,
+  exactExplanation: (): string => `«Связано точно»: ${SQ_TEXT.exactHint}`,
+  metricDetail: (key: "searches" | "nothingFound" | "amongTheFirstThree" | "firstResult" | "nothingOpened" | "rephrased" | "positionOfFirstOpenedResult" | "resultsLaterCorrected" | "markedOutdated" | "markedUseful", value: string): string => `${searchQualityPage[key]}: ${value}`,
+  hiddenSlice: (min: number): string => `${qualityText.sliceHidden(min)}.`,
+};
+
+export const searchQualityActions: Messages<typeof en.searchQualityActions> = {
+  calculationIsAlreadyRunningNumbersWillRefreshWhen: "Подсчёт уже идёт — числа обновятся, когда он закончится. Обновите страницу через пару минут.",
+  recalculationStartedRefreshThePageInAMinute: "Пересчёт запущен, обновите страницу через минуту.",
+  couldNotStartNowCalculationWillRunAutomatically: "Сейчас не запустилось — подсчёт пройдёт сам в течение 15 минут.",
+  notStarted: (value: string | number) => `Не запущено: ${value}`,
+};

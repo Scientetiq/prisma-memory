@@ -1,0 +1,26 @@
+{
+  "name": "@memory/connectors",
+  "version": "0.1.0",
+  "private": true,
+  "license": "LicenseRef-Prisma-Memory",
+  "type": "module",
+  "description": "Connector SDK and the registry of built-in connector kinds: types, manifest and config validation, item normalisation and hashing, the conformance kit. No database, settings or memory access of its own",
+  "exports": {
+    ".": "./src/index.ts",
+    "./testkit": "./src/sdk/testkit.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@memory/shared": "workspace:*",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  }
+}

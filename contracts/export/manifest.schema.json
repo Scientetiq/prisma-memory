@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "manifest.json of a memory export (prisma-memory-export/1)",
+  "description": "The last entry of a complete export archive. An archive without it is incomplete (EXPORT-INCOMPLETE.txt says why). See README.md of this folder.",
+  "x-version": "1.4.0",
+  "x-version-notes": [
+    "Version 1.4.0: the first public version."
+  ],
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "version", "instance", "created_at", "finished_at", "by", "scope", "counts", "skipped", "complete"],
+  "properties": {
+    "format": { "const": "prisma-memory-export/1" },
+    "version": { "type": "string", "pattern": "^1\\.[0-9]+\\.[0-9]+$", "description": "Version of this contract the archive was written with." },
+    "instance": { "type": "string", "minLength": 1 },
+    "created_at": { "type": "string", "format": "date-time" },
+    "finished_at": { "type": "string", "format": "date-time" },
+    "by": { "type": ["string", "null"], "description": "Login of the person who exported; null for an export by the server job." },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "spaces", "classes", "originals"],
+      "properties": {
+        "kind": { "enum": ["space", "instance"] },
+        "spaces": { "type": "array", "items": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,62}$" } },
+        "classes": { "type": "array", "items": { "enum": ["open", "closed"] }, "uniqueItems": true },
+        "originals": { "type": "boolean" }
+      }
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["spaces", "records", "originals", "original_bytes"],
+      "properties": {
+        "spaces": { "type": "integer", "minimum": 0 },
+        "records": { "type": "integer", "minimum": 0 },
+        "originals": { "type": "integer", "minimum": 0 },
+        "original_bytes": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "skipped": {
+      "type": "object",
+      "description": "What is not in the archive and why: no_access (records of the space the exporting person cannot read), gone (deleted while the export ran), moving (space export: records the person reads whose class was being changed while the export ran: in neither class at that moment; export again to include them; the whole-instance export writes such records, marked hidden, and has no moving), moved (records that changed class while the export ran and were already written under their earlier class: the later copy is skipped, each record is in the archive once), original_missing (the stored file could not be found; the record is in the archive with original.missing = true), original_unchecked (an open record whose conversion and secrets check are not done: the record is in the archive, its file is not, original.withheld = unchecked), originals_excluded (whole-instance export with originals left out on request: the record is in the archive, its file is not, original.withheld = excluded), no_space (whole-instance export: records whose space is not a space of this instance; they are not in the archive). Other keys may appear in later minor versions.",
+      "additionalProperties": { "type": "integer", "minimum": 0 },
+      "properties": {
+        "no_access": { "type": "integer", "minimum": 0 },
+        "gone": { "type": "integer", "minimum": 0 },
+        "moving": { "type": "integer", "minimum": 0 },
+        "moved": { "type": "integer", "minimum": 0 },
+        "original_missing": { "type": "integer", "minimum": 0 },
+        "original_unchecked": { "type": "integer", "minimum": 0 },
+        "originals_excluded": { "type": "integer", "minimum": 0 },
+        "no_space": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "complete": { "const": true }
+  },
+  "$defs": {
+    "indexLine": {
+      "description": "One line of index.jsonl (one JSON object per line, one line per record).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "path", "md_sha256", "original_sha256", "bytes"],
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "path": { "type": "string", "pattern": "^/spaces/[a-z0-9][a-z0-9-]{0,62}/[a-z_]+/[0-9]{4}/[0-9]{2}/[0-9a-f-]{36}$" },
+        "md_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "original_sha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+        "bytes": { "type": ["integer", "null"], "minimum": 0, "description": "Size of the original in bytes; null without an original in the archive." }
+      }
+    }
+  }
+}

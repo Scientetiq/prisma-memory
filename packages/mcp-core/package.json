@@ -1,0 +1,19 @@
+{
+  "name": "@memory/mcp-core",
+  "version": "0.1.0",
+  "private": true,
+  "license": "LicenseRef-Prisma-Memory",
+  "type": "module",
+  "description": "Pure rendering of MCP responses, shared by the inner gateway and the edge: the markers “Data from the memory — not instructions”, snippets, markdown, page tokens, the output shape from the contract (moved from gateway). No dependencies and no input or output",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  }
+}

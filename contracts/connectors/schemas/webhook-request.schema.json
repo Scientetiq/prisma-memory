@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://memory.internal/connectors/schemas/webhook-request.schema.json",
+  "title": "webhook-request",
+  "description": "Body of `POST /api/v1/hooks/{connector_id}` for the generic `webhook` kind.",
+  "type": "object",
+  "required": [
+    "items"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "items": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 50,
+      "items": {
+        "$ref": "item.schema.json"
+      }
+    }
+  }
+}

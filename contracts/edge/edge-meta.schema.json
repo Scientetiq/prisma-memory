@@ -1,0 +1,304 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "memory/edge/edge-meta-settings",
+  "title": "edge_meta.settings: settings the edge receives from inside",
+  "$comment": "Naming rule: the key is the setting name without the category prefix (edge.login_enabled → login_enabled, access.original_link_ttl_sec → original_link_ttl_sec). The value matches the inner settings table. packages/shared/scripts/gen-contracts.mjs builds propertyNames.enum from contracts/edge/settings-policy.json (where ∈ edge, both) and derived names; do not edit manually — pnpm contracts:gen. Everything else is forbidden. Derived values (not settings): mfa {mode, grace_until}, mfa_style, login_paused_until. Sign-in state is a separate edge_meta.login_state column, not a settings key. The stage introducing an ordinary key defines its value type (bounds in packages/shared/src/edge-settings.ts; edge bounds in anchor edge_bounds): this schema sets only type and shape, without bounds; the edge clamps out-of-bounds values and raises an alert rather than rejecting the entire set. The exporter publishes properties marked with x-edge: publish when their corresponding setting exists; the x-setting annotation gives the full setting key; x-bounds-from-anchors names the bound in anchors.schema.json edge_bounds: the edge clamps an out-of-bounds value and raises meta_out_of_bounds.",
+  "type": "object",
+  "properties": {
+    "mfa": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode"
+      ],
+      "properties": {
+        "mode": {
+          "enum": [
+            "off",
+            "optional",
+            "required"
+          ]
+        },
+        "grace_until": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        }
+      }
+    },
+    "mfa_style": {
+      "type": "string",
+      "maxLength": 32
+    },
+    "login_paused_until": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "fts_configs": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 3,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z_]{1,40}$"
+      },
+      "description": "Derived, not a setting: the full-text configurations the core applied to its open records; the edge builds its search with the same list"
+    },
+    "login_enabled": {
+      "type": "boolean"
+    },
+    "login_domain": {
+      "type": "string",
+      "maxLength": 189
+    },
+    "login_step_floor_ms": {
+      "type": "integer"
+    },
+    "login_check_timeout_sec": {
+      "type": "integer"
+    },
+    "check_unhealthy_queue": {
+      "type": "integer"
+    },
+    "mfa_mode": {
+      "enum": [
+        "off",
+        "optional",
+        "required"
+      ]
+    },
+    "access_token_min": {
+      "type": "integer"
+    },
+    "connection_idle_days": {
+      "type": "integer"
+    },
+    "connection_max_days": {
+      "type": "integer"
+    },
+    "max_active_connections": {
+      "type": "integer"
+    },
+    "login_session_hours": {
+      "type": "integer"
+    },
+    "login_session_hours_no_mfa": {
+      "type": "integer"
+    },
+    "refresh_reuse_grace_sec": {
+      "type": "integer"
+    },
+    "refresh_reuse_action": {
+      "enum": [
+        "revoke_connection",
+        "reject_only"
+      ]
+    },
+    "account_page_enabled": {
+      "type": "boolean"
+    },
+    "nat_cidrs": {
+      "type": "array",
+      "maxItems": 50,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "maxLength": 64
+      }
+    },
+    "login_ip_limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "failed_per_15min",
+        "logins_per_hour",
+        "login_steps_per_15min",
+        "token_per_min",
+        "authorize_per_min",
+        "nat_multiplier"
+      ],
+      "properties": {
+        "failed_per_15min": {
+          "type": "integer"
+        },
+        "logins_per_hour": {
+          "type": "integer"
+        },
+        "login_steps_per_15min": {
+          "type": "integer"
+        },
+        "token_per_min": {
+          "type": "integer"
+        },
+        "authorize_per_min": {
+          "type": "integer"
+        },
+        "nat_multiplier": {
+          "type": "integer"
+        }
+      }
+    },
+    "disabled_clients": {
+      "type": "array",
+      "maxItems": 50,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]{1,63}$"
+      }
+    },
+    "quota_mode": {
+      "enum": [
+        "observe",
+        "enforce"
+      ],
+      "description": "Daily quotas: observe emits quota_would_refuse only; enforce refuses with the quota_exceeded text"
+    },
+    "quota_daily": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "search",
+        "read",
+        "list",
+        "text_tokens",
+        "originals",
+        "originals_mib",
+        "c2_items",
+        "c2_mib",
+        "tz"
+      ],
+      "description": "Daily per-person limits by kind; days follow tz (IANA, default UTC)",
+      "properties": {
+        "search": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "read": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "list": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "text_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "originals": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "originals_mib": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "c2_items": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "c2_mib": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tz": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[A-Za-z][A-Za-z0-9_+-]*(/[A-Za-z0-9_+-]+){0,2}$"
+        }
+      }
+    },
+    "deadman_theta_sec": {
+      "type": "integer",
+      "x-edge": "publish",
+      "x-setting": "edge.deadman_theta_sec",
+      "x-bounds-from-anchors": "deadman_theta_sec",
+      "x-stage": "1b"
+    },
+    "originals_max_mib": {
+      "type": "integer",
+      "x-edge": "publish",
+      "x-setting": "edge.originals_max_mib",
+      "x-bounds-from-anchors": "originals_max_mib",
+      "x-stage": "1b"
+    },
+    "max_concurrent_per_connection": {
+      "type": "integer",
+      "x-edge": "publish",
+      "x-setting": "edge.max_concurrent_per_connection",
+      "x-bounds-from-anchors": "max_concurrent_per_connection",
+      "x-stage": "1b"
+    },
+    "connection_expiry_warn_days": {
+      "type": "integer",
+      "x-edge": "publish",
+      "x-setting": "edge.connection_expiry_warn_days",
+      "x-bounds-from-anchors": "connection_expiry_warn_days",
+      "x-stage": "1b"
+    },
+    "original_link_ttl_sec": {
+      "type": "integer",
+      "x-edge": "publish",
+      "x-setting": "access.original_link_ttl_sec",
+      "x-bounds-from-anchors": "original_link_ttl_sec",
+      "x-stage": "1b"
+    },
+    "readme_templates_enabled": {
+      "type": "boolean",
+      "description": "Space-description template switch (onboarding.readme_templates_enabled): the edge builds the readme description in memory_list /spaces/<slug> like the gateway; absent means off. Not an x-edge: publish key: the switch has no default or anchor bound (packages/wire/src/common/edge-meta.ts), which such keys have",
+      "x-setting": "onboarding.readme_templates_enabled",
+      "x-stage": "1b"
+    }
+  },
+  "propertyNames": {
+    "enum": [
+      "access_token_min",
+      "account_page_enabled",
+      "c2_enabled",
+      "check_unhealthy_queue",
+      "cimd_enabled",
+      "connection_expiry_warn_days",
+      "connection_idle_days",
+      "connection_max_days",
+      "deadman_theta_sec",
+      "device_cookie_days",
+      "disabled_clients",
+      "dpop_mode",
+      "fts_configs",
+      "login_check_timeout_sec",
+      "login_domain",
+      "login_enabled",
+      "login_ip_limits",
+      "login_paused_until",
+      "login_session_hours",
+      "login_session_hours_no_mfa",
+      "login_step_floor_ms",
+      "max_active_connections",
+      "max_concurrent_per_connection",
+      "mfa",
+      "mfa_mode",
+      "mfa_style",
+      "nat_cidrs",
+      "original_link_ttl_sec",
+      "originals_max_mib",
+      "passkey_enabled",
+      "quota_daily",
+      "quota_mode",
+      "readme_templates_enabled",
+      "refresh_reuse_action",
+      "refresh_reuse_grace_sec",
+      "spray_slowdown_max_ms",
+      "spray_slowdown_step_ms"
+    ],
+    "pattern": "^(?!decoy_guids$|code_|synthetic_|probe_)",
+    "$comment": "Forbidden: trap accounts, incorrect-code limits, synthetic sign-in and probe remain inside; never sent to the edge, even if mistakenly marked where edge. The prohibition uses a negated pattern rather than not, so the edge runtime validator also understands it (@memory/wire, json-schema.ts)"
+  }
+}

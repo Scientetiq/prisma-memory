@@ -1,0 +1,30 @@
+# Text files are stored with LF line endings.
+* text=auto eol=lf
+
+# Binary files: no line-ending conversion, no text diff.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.pdf binary
+*.docx binary
+*.xlsx binary
+*.xls binary
+*.pptx binary
+*.npy binary
+*.xz binary
+*.gz binary
+*.zip binary
+
+# Sample data whose mixed line endings are part of the test input.
+contracts/samples/documents/quoted.csv -text
+
+# Files written by the project's generators.
+*.gen.ts linguist-generated
+contracts/settings/registry.json linguist-generated

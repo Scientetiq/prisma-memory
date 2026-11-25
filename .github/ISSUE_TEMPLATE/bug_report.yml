@@ -1,0 +1,54 @@
+name: Bug report
+description: "Prisma Memory does something other than its documentation says"
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A security vulnerability is never reported here: follow SECURITY.md and report it privately.
+        Leave out keys, passwords, install codes, record text and personal data.
+  - type: textarea
+    id: what
+    attributes:
+      label: What went wrong
+      description: "What you did, what you expected, and what Prisma Memory did instead."
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to make it happen again
+      placeholder: |
+        1. …
+        2. …
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: "The Version line of the summary that deploy/compose/setup prints, or the commit of your copy."
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Part of the product
+      options:
+        - Installation and setup
+        - Agents and MCP
+        - Workplace
+        - Admin panel
+        - Documents and meetings
+        - Search
+        - Models
+        - Sign-in
+        - Something else
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Output and logs
+      description: "Exit codes, the setup: refused line, error codes and log lines. No secrets, no record text."
+      render: text

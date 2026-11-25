@@ -1,0 +1,587 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://memory.internal/document-engine/schemas/DeriveOutcomeInput.json",
+  "title": "DeriveOutcomeInput",
+  "description": "Full input of the outcome rules (`deriveOutcome`). The rules run once, in the core, for every engine: they decide extraction completeness, whether agents may receive the original file, and why not. `$defs/DeriveOutcome` is their output, and `$defs/OutcomeExample` is the shape of a worked example: a conversion, the input built from it, and the expected outcome.",
+  "$comment": "Skipped pictures, completeness and restriction signals are carried by `units` and `warnings`: skipped pictures by `picture_format_skipped:*`, `unsupported_media_type:*` and `image_limit`; completeness by unit methods, unit characters and the readable text; restriction signals by `active_content_ignored`, `table_truncated` and `broken_text_layer`. The DC adapter applies the code aliases before it builds this input (planned). Today's DC values that the alias layer maps (unit kind `document`, unit number 0) are not representable here; no rule reads them.",
+  "type": "object",
+  "required": ["status", "error", "text", "units", "warnings", "images_found", "engine_format", "detected_format", "source_flags", "engine"],
+  "additionalProperties": false,
+  "properties": {
+    "status": { "$ref": "NormalizedConversion.json#/$defs/RunStatus" },
+    "error": {
+      "description": "Raw engine failure code, before the core's normaliser. `null` when the engine gave none.",
+      "type": ["string", "null"]
+    },
+    "text": {
+      "description": "Record text in the dialect, after adapter normalisation. `null` with a non-failed status is the step error `markdown_truncated`; empty text with a non-failed status is a final failure without text.",
+      "type": ["string", "null"]
+    },
+    "units": {
+      "description": "Units with `method`, `chars` and `warnings`. Their warnings are raw like `warnings` (`InputUnit`).",
+      "type": "array",
+      "items": { "$ref": "#/$defs/InputUnit" }
+    },
+    "warnings": {
+      "description": "Result-level warnings, raw: plain strings as the engine reported them, each cut to 200 characters, not deduplicated, sorted or capped. The stored warning grammar applies only to the stored `warning_codes`; a raw entry outside it can still have an effect. Unit warnings stay on `units`; the rules read both.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/RawWarning" }
+    },
+    "images_found": {
+      "description": "Pictures the engine saw in the document, kept or not. The rules only test whether it is greater than 0 (`agent_file_why` gets `images`). Source: for `http` and built-in engines (planned), the sum of `units[].images`, where a unit derived from a `DocModel` counts the figure blocks of its container; on the DC JSON path, the number of DC result images, or of `](images/` links in DC's raw Markdown when that list is empty.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "engine_format": {
+      "description": "Format of the converted file as the engine's adapter knows it, for example `pdf` or `docx`, compared without regard to case. Source: for `http` and built-in engines (planned), the `format` the core sent with the request, which is the detected format; on the DC JSON path, DC's `source_format`. It alone decides `other_format`: a `null` engine format withholds the file even for a PDF.",
+      "type": ["string", "null"]
+    },
+    "detected_format": {
+      "description": "Format the core detected at intake. It can only add `office`; it never makes a file shareable.",
+      "type": ["string", "null"]
+    },
+    "source_flags": {
+      "description": "PDF byte flags that the core reads from the original itself. Empty for a non-PDF original and for a failed result.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/SourceFlag" }
+    },
+    "engine": { "$ref": "NormalizedConversion.json#/$defs/Engine" }
+  },
+  "$defs": {
+    "RawWarning": {
+      "description": "A raw warning entry as the engine reported it, cut to 200 characters. Not checked against the warning grammar.",
+      "type": "string",
+      "maxLength": 200
+    },
+    "InputUnit": {
+      "description": "A unit as the outcome rules read it: the same fields and rules as `ConversionUnit`, but its warnings are raw entries (`RawWarning`).",
+      "type": "object",
+      "required": ["kind", "number", "method", "chars", "images", "warnings"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "$ref": "ConversionUnit.json#/$defs/UnitKind" },
+        "number": { "type": ["integer", "null"], "minimum": 1 },
+        "method": { "$ref": "ConversionUnit.json#/$defs/Method" },
+        "chars": { "type": "integer", "minimum": 0 },
+        "images": { "type": "integer", "minimum": 0 },
+        "hidden": { "type": "boolean" },
+        "warnings": { "type": "array", "items": { "$ref": "#/$defs/RawWarning" } }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "kind": { "const": "file" } }, "required": ["kind"] },
+          "then": { "properties": { "number": { "type": "null" } } },
+          "else": { "properties": { "number": { "type": "integer" } } }
+        },
+        {
+          "if": { "properties": { "kind": { "enum": ["page", "file"] } }, "required": ["kind"] },
+          "then": { "properties": { "hidden": { "const": false } } }
+        }
+      ]
+    },
+    "SourceFlag": {
+      "description": "PDF byte flags.",
+      "oneOf": [
+        { "const": "pdf_annotations", "description": "A reviewer annotation (Text, FreeText, Popup, Highlight, Underline, StrikeOut, Squiggly, Ink, Stamp, Caret, Redact). Links and widgets do not count." },
+        { "const": "pdf_attachments", "description": "An embedded file or a file attachment." },
+        { "const": "pdf_forms", "description": "An interactive form." },
+        { "const": "pdf_images", "description": "A picture of at least 32 px on either side that is not a repeated logo (the same picture on at least 3 pages and at least 30 % of pages). When unsure, the flag is set." }
+      ]
+    },
+    "PdfHiddenPartFlag": {
+      "description": "Flags that add `pdf_hidden_parts` to `agent_file_why`.",
+      "enum": ["pdf_annotations", "pdf_attachments", "pdf_forms"]
+    },
+    "OfficeFormat": {
+      "description": "Office formats. If the engine format or the detected format is one of them, `agent_file_why` gets `office`.",
+      "enum": ["docx", "doc", "odt", "rtf", "pptx", "ppt", "odp", "xlsx", "ods"]
+    },
+    "AgentFileFormat": {
+      "description": "The only engine formats whose file can reach agents. Any other non-office engine format, `null` included, adds `other_format`.",
+      "enum": ["pdf", "csv"]
+    },
+    "ExtractionState": {
+      "description": "Extraction completeness: how much readable text the record has. Not the run status.",
+      "enum": ["ready", "partial", "unavailable"]
+    },
+    "ErrorClass": {
+      "description": "Class of an engine failure code: `terminal` (final), `rerun` (new run), `job_error` (step error).",
+      "enum": ["terminal", "rerun", "job_error"]
+    },
+    "AgentFileWhy": {
+      "description": "Why agents do not receive the original file. Listed in the order in which the rules add them. `broken_text_layer` is planned, not current.",
+      "enum": ["ocr", "images", "pictures_skipped", "active_content", "pdf_hidden_parts", "table_truncated", "broken_text_layer", "office", "other_format", "no_text"]
+    },
+    "DeriveOutcome": {
+      "description": "Output of the outcome rules. Text processing step errors (`markdown_truncated`, empty text) are failures of the step, not outcomes, and have no representation here.",
+      "type": "object",
+      "required": ["status", "text", "pages", "extraction", "agent_file", "agent_file_why", "warning_codes", "ocr_units", "ocr_rerun", "error_code", "error_class", "engine_format", "engine"],
+      "additionalProperties": false,
+      "properties": {
+        "status": { "$ref": "NormalizedConversion.json#/$defs/RunStatus", "description": "Run status, passed through from the input." },
+        "text": { "description": "Record text. Empty when the run failed.", "type": "string" },
+        "pages": { "description": "Number of page-anchor lines in `text`, or `null`.", "type": ["integer", "null"], "minimum": 1 },
+        "extraction": { "$ref": "#/$defs/ExtractionState" },
+        "agent_file": { "description": "Whether agents may receive the original file: `true` exactly when `agent_file_why` is empty.", "type": "boolean" },
+        "agent_file_why": {
+          "description": "Reasons in the order in which the outcome rules add them.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/AgentFileWhy" }
+        },
+        "warning_codes": {
+          "description": "Result and unit warnings that match the grammar, without duplicates, sorted, at most 50. Internal: not exposed to agents.",
+          "type": "array",
+          "uniqueItems": true,
+          "maxItems": 50,
+          "items": { "$ref": "ConversionUnit.json#/$defs/WarningCode" }
+        },
+        "ocr_units": { "description": "Units whose method is in the recognition set.", "type": "integer", "minimum": 0 },
+        "ocr_rerun": { "description": "A recognition rerun is asked for: a raw warning starts with `ocr_failed:`. The core runs at most one per cycle, outside the rerun budget; after that the result is applied as it is. `ocr_pending` alone does not cause a rerun.", "type": "boolean" },
+        "error_code": {
+          "description": "Normalised failure code when the run failed (`conversion_failed` when the engine gave none, `unknown` for text that is not a snake_case code); otherwise `null`.",
+          "oneOf": [{ "$ref": "ConversionUnit.json#/$defs/SnakeCode" }, { "type": "null" }]
+        },
+        "error_class": {
+          "oneOf": [{ "$ref": "#/$defs/ErrorClass" }, { "type": "null" }]
+        },
+        "engine_format": { "description": "Engine format, passed through from the input.", "type": ["string", "null"] },
+        "engine": { "$ref": "NormalizedConversion.json#/$defs/Engine" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "agent_file": { "const": true } }, "required": ["agent_file"] },
+          "then": { "properties": { "agent_file_why": { "maxItems": 0 } } },
+          "else": { "properties": { "agent_file_why": { "minItems": 1 } } }
+        },
+        {
+          "if": { "properties": { "extraction": { "const": "unavailable" } }, "required": ["extraction"] },
+          "then": { "properties": { "agent_file_why": { "contains": { "const": "no_text" } } } },
+          "else": { "properties": { "agent_file_why": { "not": { "contains": { "const": "no_text" } } } } }
+        },
+        {
+          "if": { "properties": { "status": { "const": "failed" } }, "required": ["status"] },
+          "then": {
+            "properties": {
+              "text": { "const": "" },
+              "pages": { "type": "null" },
+              "extraction": { "const": "unavailable" },
+              "agent_file": { "const": false },
+              "agent_file_why": { "const": ["no_text"] },
+              "ocr_rerun": { "const": false },
+              "error_code": { "type": "string" },
+              "error_class": { "type": "string" }
+            }
+          },
+          "else": {
+            "properties": {
+              "text": { "minLength": 1 },
+              "error_code": { "type": "null" },
+              "error_class": { "type": "null" }
+            }
+          }
+        }
+      ]
+    },
+    "OutcomeExample": {
+      "description": "A worked example: the engine result, the input that the core builds from it, and the outcome that the rules MUST produce. The files under contracts/document-engine/examples/ use this shape so that tests can reuse them.",
+      "type": "object",
+      "required": ["title", "description", "content_locale", "rule_status", "conversion", "input", "expected"],
+      "additionalProperties": false,
+      "properties": {
+        "title": { "type": "string", "minLength": 1 },
+        "description": { "type": "string", "minLength": 1 },
+        "content_locale": {
+          "description": "Locale of the markers in the text. `en` markers are planned, not current.",
+          "enum": ["en", "ru"]
+        },
+        "rule_status": {
+          "description": "`current` when today's rules, with today's recognition set, give `expected` for this input as written; `planned` when `expected` depends on a planned rule or on the planned recognition set, in which case `current` gives today's outcome.",
+          "enum": ["current", "planned"]
+        },
+        "conversion": { "$ref": "NormalizedConversion.json" },
+        "input": { "$ref": "#" },
+        "expected": { "$ref": "#/$defs/DeriveOutcome" },
+        "current": { "$ref": "#/$defs/DeriveOutcome" }
+      },
+      "if": { "properties": { "rule_status": { "const": "planned" } }, "required": ["rule_status"] },
+      "then": { "required": ["current"] },
+      "else": { "not": { "required": ["current"] } }
+    }
+  },
+  "examples": [
+    {
+      "status": "ready",
+      "error": null,
+      "text": "<!-- page: 1 -->\n\n# Supply agreement\n\nThe supplier delivers the goods to the central warehouse.\n\n<!-- page: 2 -->\n\n## Delivery terms\n\nDelivery takes place within ten working days after the order.\n",
+      "units": [
+        {
+          "kind": "page",
+          "number": 1,
+          "method": "pdf_text",
+          "chars": 73,
+          "images": 0,
+          "warnings": []
+        },
+        {
+          "kind": "page",
+          "number": 2,
+          "method": "pdf_text",
+          "chars": 75,
+          "images": 0,
+          "warnings": []
+        }
+      ],
+      "warnings": [],
+      "images_found": 0,
+      "engine_format": "pdf",
+      "detected_format": "pdf",
+      "source_flags": [],
+      "engine": {
+        "id": "builtin",
+        "release": "0.1.0"
+      }
+    },
+    {
+      "status": "ready",
+      "error": null,
+      "text": "<!-- page: 1 -->\n\n# Inspection report\n\nThe site was inspected on 3 March.\n\n<!-- page: 2 -->\n\nSigned by the inspection team. Defects found: none.\n",
+      "units": [
+        {
+          "kind": "page",
+          "number": 1,
+          "method": "pdf_text",
+          "chars": 51,
+          "images": 0,
+          "warnings": []
+        },
+        {
+          "kind": "page",
+          "number": 2,
+          "method": "ocr_model",
+          "chars": 51,
+          "images": 1,
+          "warnings": []
+        }
+      ],
+      "warnings": [],
+      "images_found": 1,
+      "engine_format": "pdf",
+      "detected_format": "pdf",
+      "source_flags": [
+        "pdf_images"
+      ],
+      "engine": {
+        "id": "builtin",
+        "release": "0.1.0"
+      }
+    },
+    {
+      "status": "ready",
+      "error": null,
+      "text": "<!-- page: 1 -->\n\nTvqqmz bhsffnfou, dfousbm xbsfipvtf, ufo xpsljoh ebzt.\n",
+      "units": [
+        {
+          "kind": "page",
+          "number": 1,
+          "method": "pdf_text",
+          "chars": 54,
+          "images": 0,
+          "warnings": [
+            "broken_text_layer"
+          ]
+        }
+      ],
+      "warnings": [],
+      "images_found": 0,
+      "engine_format": "pdf",
+      "detected_format": "pdf",
+      "source_flags": [],
+      "engine": {
+        "id": "builtin",
+        "release": "0.1.0"
+      }
+    },
+    {
+      "status": "partial",
+      "error": null,
+      "text": "## Sales\n\n| Region | Amount |\n|---|---|\n| North | 120 |\n| South | 95 |\n",
+      "units": [
+        {
+          "kind": "sheet",
+          "number": 1,
+          "method": "ooxml",
+          "chars": 27,
+          "images": 0,
+          "hidden": false,
+          "warnings": [
+            "table_truncated"
+          ]
+        }
+      ],
+      "warnings": [],
+      "images_found": 0,
+      "engine_format": "xlsx",
+      "detected_format": "xlsx",
+      "source_flags": [],
+      "engine": {
+        "id": "builtin",
+        "release": "0.1.0"
+      }
+    },
+    {
+      "status": "ready",
+      "error": null,
+      "text": "<!-- page: 1 -->\n\n## Slide 1. Project plan\n\nKick-off in March\n\nPilot in two teams\n\n<!-- page: 2 -->\n\n## Slide 2. Draft ideas (hidden)\n\nIdeas that are not final yet.\n\n<!-- page: 3 -->\n\n## Slide 3. Next steps\n\nAgree the pilot scope.\n",
+      "units": [
+        {
+          "kind": "slide",
+          "number": 1,
+          "method": "ooxml",
+          "chars": 47,
+          "images": 0,
+          "hidden": false,
+          "warnings": []
+        },
+        {
+          "kind": "slide",
+          "number": 2,
+          "method": "ooxml",
+          "chars": 40,
+          "images": 0,
+          "hidden": true,
+          "warnings": []
+        },
+        {
+          "kind": "slide",
+          "number": 3,
+          "method": "ooxml",
+          "chars": 32,
+          "images": 0,
+          "hidden": false,
+          "warnings": []
+        }
+      ],
+      "warnings": [],
+      "images_found": 0,
+      "engine_format": "pptx",
+      "detected_format": "pptx",
+      "source_flags": [],
+      "engine": {
+        "id": "builtin",
+        "release": "0.1.0"
+      }
+    },
+    {
+      "status": "ready",
+      "error": null,
+      "text": "<!-- page: 1 -->\n\n## Слайд 1. Project plan\n\nKick-off in March\n\nPilot in two teams\n\n<!-- page: 2 -->\n\n## Слайд 2. Draft ideas (скрытый)\n\nIdeas that are not final yet.\n\n<!-- page: 3 -->\n\n## Слайд 3. Next steps\n\nAgree the pilot scope.\n",
+      "units": [
+        {
+          "kind": "slide",
+          "number": 1,
+          "method": "ooxml",
+          "chars": 47,
+          "images": 0,
+          "hidden": false,
+          "warnings": []
+        },
+        {
+          "kind": "slide",
+          "number": 2,
+          "method": "ooxml",
+          "chars": 40,
+          "images": 0,
+          "hidden": true,
+          "warnings": []
+        },
+        {
+          "kind": "slide",
+          "number": 3,
+          "method": "ooxml",
+          "chars": 32,
+          "images": 0,
+          "hidden": false,
+          "warnings": []
+        }
+      ],
+      "warnings": [],
+      "images_found": 0,
+      "engine_format": "pptx",
+      "detected_format": "pptx",
+      "source_flags": [],
+      "engine": {
+        "id": "builtin",
+        "release": "0.1.0"
+      }
+    },
+    {
+      "status": "ready",
+      "error": null,
+      "text": "## Budget\n\n| Item | Cost |\n|---|---|\n| Licences | 1200 |\n\n## Rates (hidden)\n\n| Role | Rate |\n|---|---|\n| Analyst | 50 |\n",
+      "units": [
+        {
+          "kind": "sheet",
+          "number": 1,
+          "method": "ooxml",
+          "chars": 20,
+          "images": 0,
+          "hidden": false,
+          "warnings": []
+        },
+        {
+          "kind": "sheet",
+          "number": 2,
+          "method": "ooxml",
+          "chars": 17,
+          "images": 0,
+          "hidden": true,
+          "warnings": []
+        }
+      ],
+      "warnings": [],
+      "images_found": 0,
+      "engine_format": "xlsx",
+      "detected_format": "xlsx",
+      "source_flags": [],
+      "engine": {
+        "id": "builtin",
+        "release": "0.1.0"
+      }
+    },
+    {
+      "status": "ready",
+      "error": null,
+      "text": "# Supply terms\n\nThe supplier delivers the goods within 10 days.\n\n## Payment\n\nPayment is due within 30 days of delivery.\n",
+      "units": [
+        {
+          "kind": "file",
+          "number": null,
+          "method": "ooxml",
+          "chars": 108,
+          "images": 0,
+          "warnings": []
+        }
+      ],
+      "warnings": [],
+      "images_found": 0,
+      "engine_format": "docx",
+      "detected_format": "docx",
+      "source_flags": [],
+      "engine": {
+        "id": "builtin",
+        "release": "0.1.0"
+      }
+    },
+    {
+      "status": "failed",
+      "error": "encrypted",
+      "text": null,
+      "units": [],
+      "warnings": [],
+      "images_found": 0,
+      "engine_format": "pdf",
+      "detected_format": "pdf",
+      "source_flags": [],
+      "engine": {
+        "id": "builtin",
+        "release": "0.1.0"
+      }
+    },
+    {
+      "status": "ready",
+      "error": null,
+      "text": "<!-- page: 1 -->\n\n## Slide 1\n\n<!-- page: 2 -->\n\n## Slide 2\n",
+      "units": [
+        {
+          "kind": "slide",
+          "number": 1,
+          "method": "ooxml",
+          "chars": 0,
+          "images": 0,
+          "hidden": false,
+          "warnings": []
+        },
+        {
+          "kind": "slide",
+          "number": 2,
+          "method": "ooxml",
+          "chars": 0,
+          "images": 0,
+          "hidden": false,
+          "warnings": []
+        }
+      ],
+      "warnings": [],
+      "images_found": 0,
+      "engine_format": "pptx",
+      "detected_format": "pptx",
+      "source_flags": [],
+      "engine": {
+        "id": "builtin",
+        "release": "0.1.0"
+      }
+    },
+    {
+      "status": "ready",
+      "error": null,
+      "text": "<!-- page: 1 -->\n\n[figure]\n",
+      "units": [
+        {
+          "kind": "page",
+          "number": 1,
+          "method": "ocr_unavailable",
+          "chars": 0,
+          "images": 1,
+          "warnings": [
+            "ocr_not_configured"
+          ]
+        }
+      ],
+      "warnings": [],
+      "images_found": 1,
+      "engine_format": "pdf",
+      "detected_format": "pdf",
+      "source_flags": [
+        "pdf_images"
+      ],
+      "engine": {
+        "id": "builtin",
+        "release": "0.1.0"
+      }
+    },
+    {
+      "status": "ready",
+      "error": null,
+      "text": "<!-- page: 1 -->\n\n# Delivery note\n\nGoods received in full.\n\n<!-- page: 2 -->\n",
+      "units": [
+        {
+          "kind": "page",
+          "number": 1,
+          "method": "pdf_text",
+          "chars": 36,
+          "images": 0,
+          "warnings": []
+        },
+        {
+          "kind": "page",
+          "number": 2,
+          "method": "pdf_text",
+          "chars": 0,
+          "images": 0,
+          "warnings": []
+        }
+      ],
+      "warnings": [],
+      "images_found": 0,
+      "engine_format": "pdf",
+      "detected_format": "pdf",
+      "source_flags": [],
+      "engine": {
+        "id": "builtin",
+        "release": "0.1.0"
+      }
+    }
+  ]
+}

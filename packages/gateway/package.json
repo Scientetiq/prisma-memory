@@ -1,0 +1,24 @@
+{
+  "name": "@memory/gateway",
+  "version": "0.1.0",
+  "private": true,
+  "license": "LicenseRef-Prisma-Memory",
+  "type": "module",
+  "main": "src/index.ts",
+  "description": "Single entry point: MCP Streamable HTTP /mcp (the current protocol revision and the legacy mode of the SDK) and REST /api/v1; the key is checked on every request",
+  "scripts": { "typecheck": "tsc -p tsconfig.json", "test": "vitest run", "dev": "tsx watch src/index.ts", "start": "tsx src/index.ts" },
+  "dependencies": {
+    "@memory/connectors": "workspace:*",
+    "@memory/i18n": "workspace:*",
+    "@memory/mcp-core": "workspace:*",
+    "@memory/shared": "workspace:*",
+    "@modelcontextprotocol/server": "2.3.0",
+    "@modelcontextprotocol/node": "2.1.0",
+    "hono": "^4.13.16",
+    "@hono/node-server": "^1.19.18",
+    "minio": "^8.0.5",
+    "pg-boss": "^12.33.0",
+    "tsx": "^4.20.0"
+  },
+  "devDependencies": { "@modelcontextprotocol/client": "2.3.0", "@types/node": "^24.0.0", "typescript": "^5.9.0", "vitest": "^3.2.0" }
+}

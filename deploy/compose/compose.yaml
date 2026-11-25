@@ -1,0 +1,209 @@
+# Prisma Memory — the public install, one compose file. `deploy/compose/setup` writes `.env` next to this
+# file, creates the directories and secret files under MEMORY_HOME, builds the images and runs
+#   docker compose --project-directory deploy/compose -f deploy/compose/compose.yaml --env-file deploy/compose/.env up -d
+# Run without `setup`, the file stops on the first variable it needs (MEMORY_HOME, MEMORY_UID, MEMORY_GID, MEMORY_VERSION,
+# MEMORY_INSTANCE_ID have no default) instead of creating root-owned directories or starting on empty secrets.
+#
+# Services: db, s3, gateway, workers, web; job migrate (applies the schema, then exits); profile demo: demo-models.
+# Published: exactly two ports, both on ${MEMORY_PUBLISH_ADDR:-127.0.0.1} — default ports 8080 for gateway (agents, API) and 8081 for web (panel
+# and workplace; reach it through an SSH tunnel). Nothing else is published; nobody uses the host network.
+# Networks: db, s3, models are internal (no way out); egress (gateway, workers) carries the gateway port and the way out
+# to models and connectors; webpub carries only the web port (no outbound NAT). web shares no network with the gateway:
+# it talks to it through two unix sockets only. IPv4 only on every network.
+# State: bind mounts under MEMORY_HOME only, never created by Docker (create_host_path: false); no named volume, no
+# mount of this clone, no Docker socket. Secrets: one directory per service, read-only at /run/credentials; no secret
+# value is in this file, in `.env`, in an environment variable or in an image.
+# Every service: read-only root, all capabilities dropped, no-new-privileges, tmpfs /tmp, pids and memory limits,
+# json-file logs 20m × 5, one uid:gid (the installing user). Exceptions, each checked by
+# the configuration check of the source tree: db — shm_size; migrate — restart "no", network_mode none.
+# The rules of this file are judged on the resolved configuration:
+#   docker compose --project-directory deploy/compose -f deploy/compose/compose.yaml --env-file deploy/compose/.env \
+#     config --format json   (judged by the configuration check of the source tree, not shipped in the release)
+name: prisma-memory-${MEMORY_INSTANCE_ID:?run deploy/compose/setup first}
+
+x-hardening: &hardening
+  user: "${MEMORY_UID:?run deploy/compose/setup first}:${MEMORY_GID:?run deploy/compose/setup first}"
+  read_only: true
+  cap_drop: [ ALL ]
+  security_opt: [ "no-new-privileges:true" ]
+  tmpfs: [ /tmp ]
+  pids_limit: 256
+  restart: unless-stopped
+  logging: { driver: json-file, options: { max-size: "20m", max-file: "5" } }
+
+services:
+  db:
+    <<: *hardening
+    build: { context: ../.., dockerfile: deploy/compose/images/db.Dockerfile }
+    image: prisma-memory-db:${MEMORY_VERSION:?run deploy/compose/setup first}
+    # pg_hba.conf of the image: postgres only on the unix socket, the five core roles over the db network, the rest refused
+    command: [ "postgres", "-c", "hba_file=/etc/postgresql/pg_hba.conf", "-c", "max_connections=100",
+               "-c", "shared_buffers=${MEMORY_PG_SHARED_BUFFERS:-128MB}", "-c", "effective_cache_size=${MEMORY_PG_EFFECTIVE_CACHE_SIZE:-384MB}",
+               "-c", "work_mem=${MEMORY_PG_WORK_MEM:-4MB}" ]
+    environment:
+      POSTGRES_PASSWORD_FILE: /run/credentials/pg-password
+    volumes:
+      - { type: bind, source: "${MEMORY_HOME:?run deploy/compose/setup first}/data/pg", target: /var/lib/postgresql/data, bind: { create_host_path: false } }
+      # the server's unix socket, shared with migrate only: the superuser is reachable here and nowhere on a network
+      - { type: bind, source: "${MEMORY_HOME:?run deploy/compose/setup first}/run/pg", target: /var/run/postgresql, bind: { create_host_path: false } }
+      - { type: bind, source: "${MEMORY_HOME:?run deploy/compose/setup first}/secrets/db", target: /run/credentials, read_only: true, bind: { create_host_path: false } }
+    networks: [ db ]
+    mem_limit: ${MEMORY_MEM_DB:-512m}
+    shm_size: ${MEMORY_PG_SHM_SIZE:-128m}
+    stop_grace_period: 60s
+    # no database: the databases exist only after migrate. pg_isready asks over the socket (pg_hba lets postgres in only
+    # there, so nothing is logged); the bare TCP connect (no startup packet, not logged) passes only once the real server
+    # listens, because the temporary server of the first start listens on the socket only
+    healthcheck:
+      test: [ "CMD", "bash", "-c", "pg_isready -q -h /var/run/postgresql -U postgres && : </dev/tcp/127.0.0.1/5432" ]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+
+  # the schema, on every `up`: memory-schema applies the manifest through the socket, sets the five role logins from
+  # its own secret files and records the schema fingerprint, then exits 0; gateway and workers start only after that
+  migrate:
+    <<: *hardening
+    image: prisma-memory-db:${MEMORY_VERSION:?run deploy/compose/setup first}
+    restart: "no"
+    network_mode: none
+    entrypoint: [ "/usr/local/bin/memory-schema" ]
+    command: [ "apply" ]
+    depends_on: { db: { condition: service_healthy } }
+    environment:
+      CREDENTIALS_DIRECTORY: /run/credentials
+      MEMORY_INSTANCE_ID: ${MEMORY_INSTANCE_ID:?run deploy/compose/setup first}
+      MEMORY_INSTANCE_NAME: ${MEMORY_INSTANCE_NAME:-Prisma Memory}
+      MEMORY_COMMIT: ${MEMORY_COMMIT:-unknown}
+    volumes:
+      - { type: bind, source: "${MEMORY_HOME:?run deploy/compose/setup first}/run/pg", target: /var/run/postgresql, bind: { create_host_path: false } }
+      - { type: bind, source: "${MEMORY_HOME:?run deploy/compose/setup first}/secrets/migrate", target: /run/credentials, read_only: true, bind: { create_host_path: false } }
+    mem_limit: ${MEMORY_MEM_MIGRATE:-256m}
+
+  # storage of originals: versitygw (Apache-2.0), POSIX backend, own IAM; the root keys are read from the files by the
+  # shell into the process environment only; the admin API stays on 127.0.0.1 inside the container
+  s3:
+    <<: *hardening
+    image: versity/versitygw:v1.11.0@sha256:8319a530d08d537426e2f855bae5280709795dc73a3f0c347973ef915d6343c5
+    entrypoint: [ "/bin/sh", "-c", 'ROOT_ACCESS_KEY="$$(cat /run/credentials/root-access-key)" && ROOT_SECRET_KEY="$$(cat /run/credentials/root-secret-key)" && export ROOT_ACCESS_KEY ROOT_SECRET_KEY && exec versitygw --port :7070 --admin-port 127.0.0.1:7071 --iam-dir /iam --health /health --quiet posix --object-lock-mode local /data' ]
+    volumes:
+      - { type: bind, source: "${MEMORY_HOME:?run deploy/compose/setup first}/data/s3", target: /data, bind: { create_host_path: false } }
+      - { type: bind, source: "${MEMORY_HOME:?run deploy/compose/setup first}/data/s3-iam", target: /iam, bind: { create_host_path: false } }
+      - { type: bind, source: "${MEMORY_HOME:?run deploy/compose/setup first}/secrets/s3", target: /run/credentials, read_only: true, bind: { create_host_path: false } }
+    networks: [ s3 ]
+    mem_limit: ${MEMORY_MEM_S3:-128m}
+    healthcheck:
+      test: [ "CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:7070/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  gateway:
+    <<: *hardening
+    build: { context: ../.., dockerfile: deploy/compose/images/app.Dockerfile }
+    image: prisma-memory-app:${MEMORY_VERSION:?run deploy/compose/setup first}
+    command: [ "node", "--import", "tsx", "packages/gateway/src/index.ts" ]
+    depends_on:
+      db: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    environment:
+      MEMORY_ROLE: gateway
+      MEMORY_DEPLOY_PROFILE: ${MEMORY_DEPLOY_PROFILE:-internet}
+      MEMORY_INSTANCE_ID: ${MEMORY_INSTANCE_ID:?run deploy/compose/setup first}
+      MEMORY_COMMIT: ${MEMORY_COMMIT:-unknown}
+      PG_HOST: db
+      CREDENTIALS_DIRECTORY: /run/credentials
+      # the admin API, the workplace and the administrator's command line: unix sockets only, never TCP
+      MEMORY_ADMIN_LISTEN: "unix:/run/memory-admin/api.sock"
+      MEMORY_WORKPLACE_LISTEN: "unix:/run/memory-gateway/workplace.sock"
+      MEMORY_CLI_LISTEN: "unix:/run/memory-cli/cli.sock"
+      # free space is measured on the filesystem of MEMORY_HOME (an empty directory; the data itself is not mounted here)
+      MEMORY_DISK_GUARD_PATHS: /guard
+      # scrypt runs of local accounts at once (1 or 2): each needs 128 MiB besides the heap; setup writes 1 on the small profile
+      MEMORY_SCRYPT_PARALLEL: ${MEMORY_SCRYPT_PARALLEL:-2}
+      HOME: /tmp
+      NODE_OPTIONS: "--max-old-space-size=${MEMORY_HEAP_GATEWAY:-320}"
+    ports:
+      - "${MEMORY_PUBLISH_ADDR:-127.0.0.1}:${GATEWAY_PORT:-8080}:8080"
+    volumes:
+      - { type: bind, source: "${MEMORY_HOME:?run deploy/compose/setup first}/run/admin", target: /run/memory-admin, bind: { create_host_path: false } }
+      - { type: bind, source: "${MEMORY_HOME:?run deploy/compose/setup first}/run/workplace", target: /run/memory-gateway, bind: { create_host_path: false } }
+      - { type: bind, source: "${MEMORY_HOME:?run deploy/compose/setup first}/run/cli", target: /run/memory-cli, bind: { create_host_path: false } }
+      - { type: bind, source: "${MEMORY_HOME:?run deploy/compose/setup first}/secrets/gateway", target: /run/credentials, read_only: true, bind: { create_host_path: false } }
+      - { type: bind, source: "${MEMORY_HOME:?run deploy/compose/setup first}/data/guard", target: /guard, read_only: true, bind: { create_host_path: false } }
+    networks: [ db, s3, models, egress ]
+    mem_limit: ${MEMORY_MEM_GATEWAY:-512m}
+    pids_limit: 512
+    healthcheck:
+      test: [ "CMD", "node", "-e", "fetch('http://127.0.0.1:8080/livez').then(r => process.exit(r.status === 200 ? 0 : 1), () => process.exit(1))" ]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+  workers:
+    <<: *hardening
+    image: prisma-memory-app:${MEMORY_VERSION:?run deploy/compose/setup first}
+    command: [ "node", "--import", "tsx", "packages/workers/src/index.ts" ]
+    depends_on:
+      db: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    stop_grace_period: 30s
+    environment:
+      MEMORY_ROLE: worker
+      MEMORY_DEPLOY_PROFILE: ${MEMORY_DEPLOY_PROFILE:-internet}
+      MEMORY_INSTANCE_ID: ${MEMORY_INSTANCE_ID:?run deploy/compose/setup first}
+      MEMORY_COMMIT: ${MEMORY_COMMIT:-unknown}
+      PG_HOST: db
+      CREDENTIALS_DIRECTORY: /run/credentials
+      HOME: /tmp
+      NODE_OPTIONS: "--max-old-space-size=${MEMORY_HEAP_WORKERS:-320}"
+    volumes:
+      - { type: bind, source: "${MEMORY_HOME:?run deploy/compose/setup first}/secrets/workers", target: /run/credentials, read_only: true, bind: { create_host_path: false } }
+      # the "file" target of the audit journal (observability.audit_ship_target.file_dir = /data/audit-ship)
+      - { type: bind, source: "${MEMORY_HOME:?run deploy/compose/setup first}/data/audit-ship", target: /data/audit-ship, bind: { create_host_path: false } }
+    networks: [ db, s3, models, egress ]
+    mem_limit: ${MEMORY_MEM_WORKERS:-512m}
+    pids_limit: 512
+
+  # panel and workplace (role all); to the gateway only through the two sockets, so its requests arrive on the internal
+  # channel; NODE_OPTIONS keeps the import of client-peer.mjs (without it the browser's address is lost)
+  web:
+    <<: *hardening
+    build: { context: ../.., dockerfile: deploy/compose/images/web.Dockerfile }
+    image: prisma-memory-web:${MEMORY_VERSION:?run deploy/compose/setup first}
+    depends_on: { gateway: { condition: service_healthy } }
+    environment:
+      MEMORY_INSTANCE_ID: ${MEMORY_INSTANCE_ID:?run deploy/compose/setup first}
+      MEMORY_COMMIT: ${MEMORY_COMMIT:-unknown}
+      MEMORY_WEB_ROLE: all
+      GATEWAY_URL: "unix:/run/memory-gateway/workplace.sock"
+      GATEWAY_ADMIN_URL: "unix:/run/memory-admin/api.sock"
+      HOME: /tmp
+      NODE_OPTIONS: "--import=./client-peer.mjs --max-old-space-size=${MEMORY_HEAP_WEB:-240}"
+    tmpfs: [ /tmp, "/app/packages/admin/.next/cache:uid=${MEMORY_UID:?run deploy/compose/setup first},gid=${MEMORY_GID:?run deploy/compose/setup first},mode=0700" ]
+    ports:
+      - "${MEMORY_PUBLISH_ADDR:-127.0.0.1}:${WEB_PORT:-8081}:3000"
+    volumes:
+      - { type: bind, source: "${MEMORY_HOME:?run deploy/compose/setup first}/run/admin", target: /run/memory-admin, read_only: true, bind: { create_host_path: false } }
+      - { type: bind, source: "${MEMORY_HOME:?run deploy/compose/setup first}/run/workplace", target: /run/memory-gateway, read_only: true, bind: { create_host_path: false } }
+    networks: [ webpub ]
+    mem_limit: ${MEMORY_MEM_WEB:-384m}
+
+  # the model simulator (setup --demo): deterministic answers, no keys, no way out
+  demo-models:
+    <<: *hardening
+    profiles: [ demo ]
+    build: { context: ../.., dockerfile: deploy/compose/images/demo-models.Dockerfile }
+    image: prisma-memory-demo-models:${MEMORY_VERSION:?run deploy/compose/setup first}
+    networks: [ models ]
+    mem_limit: ${MEMORY_MEM_DEMO_MODELS:-256m}
+
+networks:
+  db: { internal: true, enable_ipv6: false }
+  s3: { internal: true, enable_ipv6: false }
+  models: { internal: true, enable_ipv6: false }
+  egress: { enable_ipv6: false }
+  webpub:
+    enable_ipv6: false
+    driver_opts: { com.docker.network.bridge.enable_ip_masquerade: "false" }

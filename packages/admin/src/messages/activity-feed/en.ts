@@ -1,0 +1,58 @@
+import { pluralEn } from "../../i18n/core";
+export const text = {
+  highlights: "Highlights",
+  agents: "Agents",
+  me: "Me",
+  all: "All",
+  records: "Records",
+  search: "Search",
+  deletions: "Deletions",
+  errors: "Errors",
+  yourAgent: "Your agent",
+  you: "You",
+  onYourBehalf: "on your behalf",
+  administratorInViewAsMode: "Administrator in “View as” mode",
+  actorService: "Service",
+  actorMemory: "Memory",
+  actorAdministrator: "Administrator",
+  actorOrgCurator: "“Company knowledge” curator",
+  actorColleague: "A colleague",
+  actorMeetingParticipant: "A meeting participant",
+  actorSpaceOwner: "The space owner",
+  actorSpaceMember: "A space member",
+  actorColleagueProposal: "A colleague (suggestion)",
+  and: (value0: string | number | null | undefined, value1: string | number | null | undefined): string => `${value0} and ${value1}`,
+  fileSavedAgentsCannotSeeIt: (value0: string | number | null | undefined): string => `file saved. Agents cannot see it yet: the open check found ${value0}`,
+  record: "record",
+  untitled: "untitled",
+  agentRequest: "agent request",
+  workspaceAction: "workspace action",
+  serviceRequest: "service request",
+  shown: (value0: string | number | null | undefined): string => `shown: ${value0}`,
+  actionsRows: (value0: string | number | null | undefined, value1: string | number | null | undefined): string => `actions: ${value0}, rows: ${value1}`,
+  inOneMinute: "in one minute",
+  moreRecords: (n: number): string => `and ${n} more ${pluralEn(n, "record", "records")}`,
+  goneRecords: (n: number): string => n === 1 ? "record unavailable or deleted" : `${n} records unavailable or deleted`,
+  minutesSpan: (n: number): string => `in ${n} ${pluralEn(n, "minute", "minutes")}`,
+  hoursSpan: (n: number): string => `in ${n} ${pluralEn(n, "hour", "hours")}`,
+  daysSpan: (n: number): string => `in ${n} ${pluralEn(n, "day", "days")}`,
+  repeats: (n: number, span: string): string => `${n} ${pluralEn(n, "time", "times")} ${span}`,
+};
+
+
+export const FEED_EVENT: Readonly<Record<string, string>> = {
+  read: "read", search: "search", list: "viewed a list", write: "saved", promote: "moved between spaces",
+  open: "shown to agents", forget: "deleted", extended_key_use: "closed record read by an agent with extended access",
+  t1_fallback: "answered with some checks omitted", confirmation: "confirmation", admin: "key and sign-in management", processing: "processing by memory",
+  auth_failure: "refused: key not accepted", rate_limited: "refused: too frequent", class_move: "access changed", purge: "cleanup", directory: "colleague search",
+  external: "external access",
+};
+
+export const REFUSED_TOOL_PLAIN: Readonly<Record<string, string>> = {
+  memory_search: "search", memory_read: "reading a record", memory_list: "viewing a list", memory_me: "your profile",
+  memory_remember: "saving a record", memory_upload: "uploading a file", memory_meeting_upload: "uploading a meeting",
+  memory_process_now: "processing a record", memory_space_create: "creating a project", memory_space_add_member: "inviting a colleague",
+  memory_space_remove_member: "removing a colleague", memory_promote: "moving a record", memory_open: "showing a record to agents",
+  memory_close: "hiding a record from agents", memory_delete: "deleting a record", memory_correct: "correcting a record",
+  memory_plan: "bulk change", memory_apply: "bulk change",
+};

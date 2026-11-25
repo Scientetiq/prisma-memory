@@ -1,0 +1,178 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://memory.internal/document-engine/schemas/ConversionUnit.json",
+  "title": "ConversionUnit",
+  "description": "One unit of the source document: a PDF page, a slide, a sheet, or the whole file. Engines report one unit per page, slide or sheet; word-processing files and other formats without a page model have one unit of kind `file`. The `$defs` of this file also hold the shared code grammars: method codes and warning codes.",
+  "$comment": "No `title` field: a unit title is document text. Adapters MUST drop it, and it MUST NOT be logged or stored. Unknown fields are rejected.",
+  "type": "object",
+  "required": ["kind", "number", "method", "chars", "images", "warnings"],
+  "additionalProperties": false,
+  "properties": {
+    "kind": { "$ref": "#/$defs/UnitKind" },
+    "number": {
+      "description": "Page, slide or sheet number, counted from 1. `null` for a unit of kind `file`.",
+      "type": ["integer", "null"],
+      "minimum": 1
+    },
+    "method": { "$ref": "#/$defs/Method" },
+    "chars": {
+      "description": "Number of Unicode code points of the source text extracted for this unit. Counted: the text of its paragraphs, headings, list items, table cells, speaker-note paragraphs and footnote and endnote bodies, plus the slide title. Not counted: page anchors; the generated part of slide and sheet headings (`## Slide N`, the `. ` before a slide title, and the whole sheet heading line with the sheet name); hidden suffixes and every other marker (figure markers with their captions, the speaker-notes label line, `[^n]` references and labels, hidden row and column suffixes); placeholders and notes an engine adds for unread or recognised content; Markdown markup. The rules only test whether every unit has `chars` = 0, so engines MAY count approximately, but `chars` MUST be 0 when the unit has no extracted source text and MUST be greater than 0 when it has some. DC reports its own count of the unit's text without \"not recognised\" placeholders.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "images": {
+      "description": "Pictures found in this unit, kept or not.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "hidden": {
+      "description": "`true` when the slide or sheet is hidden in the source. Absent means \"not reported\". Never `true` for a page or a file.",
+      "type": "boolean"
+    },
+    "warnings": {
+      "description": "Warning codes of this unit. Result-level warnings are not repeated here.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/WarningCode" }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "kind": { "const": "file" } }, "required": ["kind"] },
+      "then": { "properties": { "number": { "type": "null" } } },
+      "else": { "properties": { "number": { "type": "integer" } } }
+    },
+    {
+      "if": { "properties": { "kind": { "enum": ["page", "file"] } }, "required": ["kind"] },
+      "then": { "properties": { "hidden": { "const": false } } }
+    }
+  ],
+  "$defs": {
+    "UnitKind": {
+      "description": "What the unit is. The DC kind `document` is an alias of `file`; adapters map it.",
+      "enum": ["page", "slide", "sheet", "file"]
+    },
+    "SnakeCode": {
+      "description": "A snake_case code: the grammar of engine failure codes and method codes.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,63}$"
+    },
+    "Method": {
+      "description": "How the unit reached the text. A registered code (`RegisteredMethod`) or another snake_case value, which the core treats as text extracted without recognition. The empty string means \"not reported\" and is also treated as non-recognition. The only rule that reads this field is membership in `RecognitionSet`.",
+      "type": "string",
+      "pattern": "^(?:[a-z][a-z0-9_]{0,63})?$"
+    },
+    "RegisteredMethod": {
+      "description": "Registered method codes. New codes are added by a minor version.",
+      "oneOf": [
+        { "const": "pdf_text", "description": "Text taken from the PDF text layer. Not recognition." },
+        { "const": "ooxml", "description": "Text taken from the structure of an office document (OOXML, including legacy formats converted to OOXML first). Not recognition." },
+        { "const": "ocr_local", "description": "Page or slide recognised by a local OCR engine. Recognition (planned: not in today's recognition set)." },
+        { "const": "ocr_model", "description": "Page or slide recognised by a model. Recognition (planned: not in today's recognition set)." },
+        { "const": "ocr_unavailable", "description": "Recognition was needed but no recogniser is configured or available. Recognition." },
+        { "const": "ocr_failed", "description": "Recognition was attempted and failed. Recognition." },
+        { "const": "ocr_pending", "description": "Recognition was requested but did not finish within the engine's budget. Recognition." }
+      ]
+    },
+    "RecognitionSet": {
+      "description": "Method values that count as recognition: any of them adds the unit to `ocr_units`, makes extraction `partial` and adds `ocr` to `agent_file_why`. The set is the five recognition codes of `RegisteredMethod` plus the DC alias `ocr`. Planned: today the set is DC's `ocr`, `ocr_failed`, `ocr_unavailable` and `ocr_pending`; `ocr_local` and `ocr_model` join it with the shared outcome rules.",
+      "enum": ["ocr_local", "ocr_model", "ocr_unavailable", "ocr_failed", "ocr_pending", "ocr"]
+    },
+    "WarningCode": {
+      "description": "A warning code: a snake_case name with an optional `:detail`. Consumers MUST keep unknown codes and MUST ignore them.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,63}(?::[A-Za-z0-9_.+/-]{1,64})?$"
+    },
+    "RegisteredWarning": {
+      "description": "Warning codes with an effect in the outcome rules, plus informational codes known today. Any other code that matches `WarningCode` is stored and has no effect. A `const` entry matches only exactly and MUST be emitted without a `:detail`; a `pattern` entry matches by its `name:` prefix and MUST carry a non-empty detail. Otherwise the code has no effect.",
+      "oneOf": [
+        { "const": "ocr_not_configured", "description": "No recogniser is configured. Recognition flag: extraction `partial`, `agent_file_why` gets `ocr`." },
+        { "const": "ocr_found_no_text", "description": "Recognition ran and found no text. Recognition flag." },
+        { "pattern": "^ocr_failed:[A-Za-z0-9_.+/-]{1,64}$", "description": "`ocr_failed:<detail>`: recognition failed on a page (detail: error name). Recognition flag, and one recognition rerun later." },
+        { "pattern": "^picture_format_skipped:[A-Za-z0-9_.+/-]{1,64}$", "description": "`picture_format_skipped:<ext>`: a picture in an unsupported format was skipped. `agent_file_why` gets `pictures_skipped`." },
+        { "pattern": "^unsupported_media_type:[A-Za-z0-9_.+/-]{1,64}$", "description": "`unsupported_media_type:<type>`: a picture was not kept. `agent_file_why` gets `pictures_skipped`." },
+        { "const": "image_limit", "description": "The picture limit was reached. `agent_file_why` gets `pictures_skipped`." },
+        { "const": "active_content_ignored", "description": "Macros, scripts or actions were ignored. `agent_file_why` gets `active_content`." },
+        { "const": "table_truncated", "description": "A table in the text was cut at the engine's limit (any number of tables). `agent_file_why` gets `table_truncated`; extraction is not changed." },
+        { "const": "broken_text_layer", "description": "The PDF text layer is unreliable (for example fonts without a Unicode map). Planned (not current): extraction `partial`, `agent_file_why` gets `broken_text_layer`. Today the code is only stored." },
+        { "const": "text_layer_used", "description": "Informational; its meaning is not defined by this contract. Stored only." },
+        { "const": "merged_with_previous", "description": "Informational; its meaning is not defined by this contract. Stored only." },
+        { "pattern": "^content_not_read:[A-Za-z0-9_.+/-]{1,64}$", "description": "`content_not_read:<kind>`: DC did not read a part of the document. Informational, stored only." }
+      ]
+    }
+  },
+  "examples": [
+    {
+      "kind": "page",
+      "number": 1,
+      "method": "pdf_text",
+      "chars": 73,
+      "images": 0,
+      "warnings": []
+    },
+    {
+      "kind": "page",
+      "number": 2,
+      "method": "ocr_model",
+      "chars": 51,
+      "images": 1,
+      "warnings": []
+    },
+    {
+      "kind": "page",
+      "number": 1,
+      "method": "pdf_text",
+      "chars": 54,
+      "images": 0,
+      "warnings": [
+        "broken_text_layer"
+      ]
+    },
+    {
+      "kind": "sheet",
+      "number": 1,
+      "method": "ooxml",
+      "chars": 27,
+      "images": 0,
+      "hidden": false,
+      "warnings": [
+        "table_truncated"
+      ]
+    },
+    {
+      "kind": "slide",
+      "number": 2,
+      "method": "ooxml",
+      "chars": 40,
+      "images": 0,
+      "hidden": true,
+      "warnings": []
+    },
+    {
+      "kind": "file",
+      "number": null,
+      "method": "ooxml",
+      "chars": 108,
+      "images": 0,
+      "warnings": []
+    },
+    {
+      "kind": "slide",
+      "number": 1,
+      "method": "ooxml",
+      "chars": 0,
+      "images": 0,
+      "hidden": false,
+      "warnings": []
+    },
+    {
+      "kind": "page",
+      "number": 1,
+      "method": "ocr_unavailable",
+      "chars": 0,
+      "images": 1,
+      "warnings": [
+        "ocr_not_configured"
+      ]
+    }
+  ]
+}

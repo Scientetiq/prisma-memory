@@ -1,0 +1,14 @@
+import { localized } from "../../i18n/runtime";
+import * as en from "./en";
+import * as ru from "./ru";
+export const PLAN_OP_TITLES = localized({ en: en.PLAN_OP_TITLES, ru: ru.PLAN_OP_TITLES });
+export const PLAN_STATUS_TITLES = localized({ en: en.PLAN_STATUS_TITLES, ru: ru.PLAN_STATUS_TITLES });
+export const PLAN_ITEM_TITLES = localized({ en: en.PLAN_ITEM_TITLES, ru: ru.PLAN_ITEM_TITLES });
+export const PLAN_ITEM_BUTTONS = localized({ en: en.PLAN_ITEM_BUTTONS, ru: ru.PLAN_ITEM_BUTTONS });
+export const PLAN_REASON_TITLES = localized({ en: en.PLAN_REASON_TITLES, ru: ru.PLAN_REASON_TITLES });
+export const PLAN_APPLY_REASONS = localized({ en: en.PLAN_APPLY_REASONS, ru: ru.PLAN_APPLY_REASONS });
+export const PLANS_MORE = localized({ en: en.PLANS_MORE, ru: ru.PLANS_MORE });
+export const PLANS_EMPTY = localized({ en: en.PLANS_EMPTY, ru: ru.PLANS_EMPTY });
+export const PLAN_ITEM_CORRECTION = localized({ en: en.PLAN_ITEM_CORRECTION, ru: ru.PLAN_ITEM_CORRECTION });
+export const PLAN_REASON_CORRECT_BULK = localized({ en: en.PLAN_REASON_CORRECT_BULK, ru: ru.PLAN_REASON_CORRECT_BULK });
+export const PLANS_MESSAGES = localized({ en: en.PLANS_MESSAGES, ru: ru.PLANS_MESSAGES });

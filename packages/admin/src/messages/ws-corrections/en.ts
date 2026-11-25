@@ -1,0 +1,31 @@
+export const actionsText = {
+  tooLongUseAtMost2: "Too long: use at most 2,000 characters to briefly explain what is correct.",
+  thisKindOfCorrectionDoesNot: "This kind of correction does not apply to this record.",
+  theTranscriptPhraseMustBeBetween: "The transcript phrase must be between 8 and 1,000 characters.",
+  describeWhatIsCorrect: "Describe what is correct.",
+  selectTheNewerRecordFromThe: "Select the newer record from the list again.",
+  thisDoesNotLookLikeA: "This does not look like a record address. Paste a link to the record page or its record number.",
+  chooseAnotherRecordThisIsThe: "Choose another record: this is the same one.",
+  describeWhatChangedOrPasteThe: "Describe what changed or paste the address of a newer record.",
+  enterTheNewNoteText: "Enter the new note text.",
+  titleMustBeAtMost200: "Title must be at most 200 characters.",
+  unknownCorrectionDecision: "Unknown correction decision",
+  specifyWhoToReplaceAndTheir: "Specify who to replace and their replacement.",
+  namesMustBeAtMost120: "Names must be at most 120 characters.",
+  specifyDifferentNames: "Specify different names.",
+};
+
+export const pageText = {
+  theListCouldNotBeLoaded: "The list could not be loaded. Refresh the page.",
+  youNoLongerHaveAccessTo: "You no longer have access to this record",
+  untitled: "Untitled",
+  noMoreRecords: "No more records.",
+  record: "Record",
+  proposedChanges: "Proposed changes",
+  who: "Who",
+  when: "When",
+  decision: "Decision",
+  whatChanged: "What changed",
+  state: "Status",
+  action: "Action",
+};

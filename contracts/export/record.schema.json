@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "<id>.json of a record in a memory export (prisma-memory-export/1)",
+  "description": "Full metadata of one record. The text is in <id>.md next to it; the original, when there is one, under spaces/<slug>/originals/<id>/. See README.md of this folder.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "path", "type", "event_kind", "title", "space", "class", "origin", "method", "source_kind", "source_ref",
+               "occurred_at", "ingested_at", "owner", "version", "supersedes_id", "superseded_by_id", "is_current", "parent_id",
+               "derived", "domains", "entities", "people", "audience", "confirmed", "valid_from", "valid_to", "original",
+               "corrections", "attrs"],
+  "$defs": {
+    "uuid": { "type": "string", "format": "uuid" },
+    "uuidOrNull": { "type": ["string", "null"], "format": "uuid" },
+    "time": { "type": ["string", "null"], "format": "date-time" }
+  },
+  "properties": {
+    "id": { "$ref": "#/$defs/uuid" },
+    "path": { "type": "string", "pattern": "^/spaces/[a-z0-9][a-z0-9-]{0,62}/[a-z_]+/[0-9]{4}/[0-9]{2}/[0-9a-f-]{36}$", "description": "The path agents cite; the same record in this archive is that path with .md / .json." },
+    "type": { "enum": ["document", "transcript", "event", "summary", "profile", "note"] },
+    "event_kind": { "enum": ["decision", "action", "question_risk", "fact", null] },
+    "title": { "type": ["string", "null"] },
+    "space": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,62}$", "description": "Slug of the home space." },
+    "class": { "enum": ["open", "closed"], "description": "open — AI agents may read the record; closed — only people (and keys allowed to read closed records)." },
+    "origin": { "enum": ["human", "agent", null] },
+    "method": { "enum": ["source_document", "extracted_by_model", "stated_by_human", "inferred_by_agent", null] },
+    "source_kind": { "type": ["string", "null"] },
+    "source_ref": { "type": ["string", "null"] },
+    "occurred_at": { "$ref": "#/$defs/time" },
+    "ingested_at": { "$ref": "#/$defs/time" },
+    "owner": { "type": ["string", "null"], "description": "Login of the author." },
+    "version": { "type": "integer", "minimum": 1 },
+    "supersedes_id": { "$ref": "#/$defs/uuidOrNull" },
+    "superseded_by_id": { "$ref": "#/$defs/uuidOrNull" },
+    "is_current": { "type": "boolean", "description": "false — a previous version; the current one is reached through superseded_by_id." },
+    "hidden": { "const": true, "description": "Only in a whole-instance export: the record was hidden from everyone when it was exported (its class was being changed, or it was held back after a failed check and waits for an administrator). Absent for every other record." },
+    "parent_id": { "$ref": "#/$defs/uuidOrNull", "description": "Set for derived records (summaries, events of a meeting or a document)." },
+    "derived": { "type": "array", "items": { "$ref": "#/$defs/uuid" }, "description": "Derived records of this one that are in the archive." },
+    "domains": { "type": "array", "items": { "type": "string" } },
+    "entities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["ref", "display_name", "role"],
+        "properties": {
+          "ref": { "type": "string", "description": "Entity key as agents use it, e.g. project:<slug> or person:<login>." },
+          "display_name": { "type": ["string", "null"] },
+          "role": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "people": { "type": "array", "items": { "type": "string" }, "description": "Logins of the people the record is shared with by name (audience people)." },
+    "audience": { "enum": ["space", "people"] },
+    "confirmed": { "type": "boolean" },
+    "valid_from": { "$ref": "#/$defs/time" },
+    "valid_to": { "$ref": "#/$defs/time" },
+    "original": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["file", "name", "mime", "bytes", "sha256", "pages", "duration_sec"],
+          "properties": {
+            "file": { "type": ["string", "null"], "pattern": "^spaces/[a-z0-9][a-z0-9-]{0,62}/originals/[0-9a-f-]{36}/[^/]+$", "description": "Archive path of the file; null when it is missing." },
+            "name": { "type": ["string", "null"], "description": "File name as it was uploaded." },
+            "mime": { "type": ["string", "null"] },
+            "bytes": { "type": ["integer", "null"], "minimum": 0 },
+            "sha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+            "pages": { "type": ["integer", "null"], "minimum": 0 },
+            "duration_sec": { "type": ["integer", "null"], "minimum": 0 },
+            "missing": { "const": true, "description": "The stored file could not be read; the record is exported without it." },
+            "withheld": { "enum": ["unchecked", "excluded"], "description": "The file exists but is not in the archive; file, bytes and sha256 are null. unchecked — an open record whose conversion and secrets check are not done (counted in skipped.original_unchecked of the manifest); excluded — the whole-instance export was asked to leave every original out (counted in skipped.originals_excluded)." }
+          }
+        }
+      ]
+    },
+    "corrections": {
+      "type": "array",
+      "description": "Applied corrections of the record (the corrected text itself is the newer version or the correction record).",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "kind", "status", "result_id", "created_at"],
+        "properties": {
+          "id": { "$ref": "#/$defs/uuid" },
+          "kind": { "type": "string" },
+          "status": { "type": "string" },
+          "result_id": { "$ref": "#/$defs/uuidOrNull" },
+          "created_at": { "$ref": "#/$defs/time" }
+        }
+      }
+    },
+    "attrs": {
+      "type": "object",
+      "description": "An allow-list of the record's optional fields; nothing else of attrs is exported.",
+      "additionalProperties": false,
+      "properties": {
+        "filename": {},
+        "meeting_id": {},
+        "participants": {},
+        "transcript_format": {},
+        "actors": {},
+        "consent": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "version": {}, "accepted_at": {}, "by": {} }
+        },
+        "conversion": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "status": {}, "profile": {} }
+        }
+      }
+    }
+  }
+}

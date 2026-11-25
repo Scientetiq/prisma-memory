@@ -1,0 +1,52 @@
+{
+  "format": "memory-security-mails/1",
+  "$comment": [
+    "Texts of security e-mails to a person — the kind security in mail_outbox. The source for packages/shared/src/security-mails.ts: the code takes the text from here, substitutes the values and puts the e-mail with the function security_mail; the function itself knows no texts, but checks once more that there are no links.",
+    "There are no links at all: no addresses, no host names, no e-mail addresses, no name of the sign-in page — the person is guided with the words “open the memory workspace”. An e-mail with a link is the best template for phishing (as in notices.json).",
+    "The substitutions are only {time} (YYYY-MM-DD HH:MM UTC) and {count} (a number). No codes, no secrets, no full names: the e-mail goes to the person’s mailbox and stays there.",
+    "sender — which part puts the e-mail: 1f-core (the memory-authcheck service, sign-in and codes), 1f-flow-W (setup from inside and reset), admin (the mailing is started by an administrator). The template code is the key name: it is also p_template in security_mail and part of the repeat key."
+  ],
+  "substitutions": ["time", "count"],
+  "mails": {
+    "factor_locked": {
+      "sender": "1f-core",
+      "subject": "Prisma Memory: code sign-in locked",
+      "body": "Too many wrong second-factor codes were entered in a row for signing in to the memory from the internet. Code sign-in is closed until {time}.\n\nIf this was you, wait and enter a new code from the app. If not, someone is trying to sign in under your name: tell support."
+    },
+    "factor_locked_inside": {
+      "sender": "1f-core",
+      "subject": "Prisma Memory: phone replacement locked",
+      "body": "Too many wrong second-factor codes were entered in a row in the memory workspace. You will be able to replace the phone and issue new recovery codes after {time}. This does not lock sign-in from outside.\n\nIf this was you, wait and enter a new code from the app. If not, someone is working in the workspace under your name: sign out of all sessions at once and tell support."
+    },
+    "recovery_used": {
+      "sender": "1f-core",
+      "subject": "Prisma Memory: recovery code used",
+      "body": "One of your recovery codes was used to sign in to the memory from the internet ({time}). Unused codes left: {count}.\n\nIf this wasn’t you, tell support at once. You can issue new codes in the memory workspace: “External access”, then “Second factor”."
+    },
+    "factor_enrolled": {
+      "sender": "1f-flow-W",
+      "subject": "Prisma Memory: second factor set up",
+      "body": "You set up a second factor for signing in to the memory from the internet ({time}).\n\nIf this wasn’t you, open the memory workspace from the company network and tell support."
+    },
+    "factor_replaced": {
+      "sender": "1f-flow-W",
+      "subject": "Prisma Memory: phone for codes replaced",
+      "body": "The second factor for signing in to the memory from the internet was moved to another phone ({time}). Codes from the previous phone no longer work.\n\nIf this wasn’t you, tell support at once."
+    },
+    "recovery_reissued": {
+      "sender": "1f-flow-W",
+      "subject": "Prisma Memory: new recovery codes issued",
+      "body": "You issued new recovery codes ({time}). The previous codes are no longer valid.\n\nIf this wasn’t you, tell support at once."
+    },
+    "factor_reset": {
+      "sender": "1f-flow-W",
+      "subject": "Prisma Memory: second factor reset",
+      "body": "Support reset your second factor for signing in to the memory from the internet ({time}). Codes from the phone and the previous recovery codes no longer work, and sign-ins from outside are ended.\n\nSet up the second factor again in the memory workspace: “External access”, then “Second factor”. If you did not ask for a reset, tell support at once."
+    },
+    "recovery_reissue": {
+      "sender": "admin",
+      "subject": "Prisma Memory: issue new recovery codes",
+      "body": "We are changing the protection keys of the second factor. Open the memory workspace from the company network, the “External access” section, then “Second factor”, and issue new recovery codes. The previous codes still work for now and will stop working later."
+    }
+  }
+}

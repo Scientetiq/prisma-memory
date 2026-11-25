@@ -1,0 +1,20 @@
+{
+  "event_id": "msg_2mVb7d1x9QkQe",
+  "items": [
+    {
+      "external_id": "form-reply-301",
+      "type": "note",
+      "status": "staged"
+    },
+    {
+      "external_id": "company:42",
+      "type": "entity",
+      "status": "delivered"
+    },
+    {
+      "external_id": "wiki/onboarding",
+      "type": "document",
+      "status": "deleted_at_source"
+    }
+  ]
+}

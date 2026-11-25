@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://memory.example.test/contracts/admin/audit-ship-line.schema.json",
+  "title": "Audit log line sent to an external receiver",
+  "description": "One JSONL line (file) or the MSG field of an RFC 5424 message (syslog over TLS, RFC 5425). Only audit_events metadata: record texts, titles, queries (query_text), tokens and passwords are never sent. details contains only the allowlisted keys below. Lines form a chain: h = sha256(prev ‖ canonical line without h), prev is the previous line’s h (64 zeros for the first line). The edge and the bridge write the same format; contracts/edge/ references this schema.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["v", "seq", "prev", "h", "id", "at", "event_type", "principal_type"],
+  "properties": {
+    "v": { "const": 1, "description": "Line format version" },
+    "seq": { "type": "integer", "minimum": 1, "description": "Line number at this receiver; increases without gaps (audit_ship_state.seq)" },
+    "prev": { "type": "string", "pattern": "^[0-9a-f]{64}$", "description": "Previous line’s h; 64 zeros for the first line" },
+    "h": { "type": "string", "pattern": "^[0-9a-f]{64}$", "description": "sha256(prev ‖ canonical line without the h field): keys sorted alphabetically, no spaces" },
+    "id": { "type": "string", "format": "uuid", "description": "audit_events.id: the receiver uses it to identify duplicates" },
+    "at": { "type": "string", "format": "date-time" },
+    "source": { "type": "string", "maxLength": 40, "description": "Sender: gateway (inner-perimeter audit log), edge, bridge" },
+    "event_type": { "type": "string", "maxLength": 64 },
+    "principal_type": { "type": "string", "enum": ["person", "service", "system"] },
+    "principal_id": { "type": ["string", "null"], "maxLength": 64 },
+    "service_id": { "type": ["string", "null"], "maxLength": 64 },
+    "on_behalf_of": { "type": ["string", "null"], "maxLength": 64, "description": "Person profile identifier, not a login" },
+    "key_id": { "type": ["string", "null"], "maxLength": 64 },
+    "tier": { "type": ["string", "null"], "maxLength": 16 },
+    "class": { "type": ["string", "null"], "enum": ["open", "closed", null] },
+    "result_count": { "type": ["integer", "null"], "minimum": 0 },
+    "records": { "type": ["integer", "null"], "minimum": 0, "description": "Number of affected records, without identifiers" },
+    "details": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Allowlist: all other event details are discarded when building the line",
+      "properties": {
+        "op": { "type": "string", "maxLength": 64 },
+        "reason": { "type": "string", "maxLength": 64 },
+        "code": { "type": "string", "maxLength": 64 },
+        "admin_person": { "type": "string", "maxLength": 64 },
+        "admin_session": { "type": "string", "maxLength": 64 },
+        "admin_role": { "type": "string", "enum": ["memory_admin", "security_auditor"] },
+        "admin_auth": { "type": "string", "maxLength": 32 },
+        "key": { "type": "string", "maxLength": 128, "description": "Setting name (category.key) or API key identifier, without its value" },
+        "approval": { "type": "string", "maxLength": 64 },
+        "level": { "type": "string", "enum": ["high", "medium", "page", "metric", "info"] },
+        "by_kind": { "type": "string", "enum": ["person", "admin_local", "system"], "description": "Who acknowledged the alert (op alert_ack)" },
+        "exception": { "type": "string", "enum": ["no_admin_listener", "sso_login_disabled"], "description": "The exception under which the local administrator acknowledged a high or page alert (op alert_ack)" }
+      }
+    }
+  }
+}

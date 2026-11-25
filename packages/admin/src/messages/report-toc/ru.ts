@@ -1,0 +1,48 @@
+import type { Messages } from "../../i18n/core";
+import type * as en from "./en";
+
+export const tocText: Messages<typeof en.tocText> = {
+  processing: "Обработка",
+  byRecordType: "По типам записей",
+  nightProcessing: "Ночная обработка",
+  quoteVerifier: "Верификатор цитат",
+  projectLinks: "Связи проектов",
+  occurredAtTimesSavedBeforeTheFix: "Время «Когда это было» до исправления",
+  searchAndAdoption: "Поиск и внедрение",
+  weeklySearchQuality: "Качество поиска за неделю",
+  adoption: "Внедрение",
+  accessAndRoles: "Доступ и роли",
+  broadRoleAssignments: "Широкие назначения",
+  accessOnBehalfOfPeople: "Работа «от имени»",
+  extendedAccessAndOpenRecords: "Расширенный доступ и открытое",
+  keyProgramAndReportedClient: "Программа ключа и присланная",
+  aDGroupBindings: "Привязки групп AD",
+  aDGroupSync: "Сверка групп AD",
+  openCheck: "Проверка открытого",
+  openCheck2: "Проверка открытого слоя",
+  companyKnowledgeCuratorReview: "Общие знания компании: проверка кураторами",
+  spaceNamesWithFindings: "Названия пространств с находками",
+  spaces: "Пространства",
+  newSpaces: "Новые пространства",
+  spacesWithoutAnActiveOwner: "Пространства без действующего владельца",
+  departmentsWithoutAnActiveHead: "Подразделения без действующего руководителя",
+  departedEmployees: "Уволенные",
+  departedEmployeesWithoutACustodian: "Уволенные без хранителя",
+  custodiansAssignedOutsideTheOrgTable: "Хранители, назначенные не по орг-таблице",
+  meetingsNotTransferringToTheCustodian: "Встречи не переходят хранителю",
+  custodianIsTheMemoryAdministrator: "Хранитель — сам администратор памяти",
+  backups: "Резервные копии",
+  serverBackups: "Резервные копии на сервере",
+  testData: "Тестовое",
+  testLeftovers: "Тестовые остатки",
+  permanentTestCleanup: "Окончательное удаление тестового",
+  needsAction: (value1: string | number): string => `есть что сделать (${value1})`,
+  allClear: "в порядке",
+  countsAllAccountsIncludingTestAccounts: "Считаются все учётные записи, включая тестовые.",
+  countsAllAccountsIncludingTestAccountsAs: "Считаются все учётные записи, включая тестовые (так задано в адресе страницы).",
+  countsEmployeesExcludingTestAccountsAndRole: "Считаются сотрудники: без тестовых учётных записей и витрины ролей.",
+};
+
+export const REPORT_TOC_TEXT: Messages<typeof en.REPORT_TOC_TEXT> = {
+  funnelEmptyCatalog: "Каталог сотрудников не загружен — шаги посчитаются после загрузки орг-таблицы или первых входов сотрудников.",
+};

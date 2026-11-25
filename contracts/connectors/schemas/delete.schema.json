@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://memory.internal/connectors/schemas/delete.schema.json",
+  "title": "delete",
+  "description": "The item was deleted in the source. What happens to the record follows the connector policy.",
+  "type": "object",
+  "required": [
+    "type",
+    "external_id",
+    "of"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "type": {
+      "const": "delete"
+    },
+    "external_id": {
+      "$ref": "item.schema.json#/$defs/ExternalId"
+    },
+    "of": {
+      "$ref": "item.schema.json#/$defs/ItemType"
+    },
+    "occurred_at": {
+      "$ref": "item.schema.json#/$defs/Timestamp"
+    }
+  }
+}

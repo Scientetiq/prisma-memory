@@ -1,0 +1,109 @@
+{
+  "title": "Partial with a scanned page",
+  "description": "Page 2 is a scanned picture without a text layer. The engine recognised it with a model (`ocr_model`) and reports the picture on the unit; the core's byte scan sets `pdf_images`. Planned rule: `ocr_model` is in the recognition set, so extraction is partial even though the run status is ready, and the file is withheld from agents with `ocr` and `images`. Today `ocr_model` is not in the recognition set: extraction stays ready and only `images` withholds the file, which `current` shows. With the DC method value `ocr` today's rules already give partial.",
+  "content_locale": "en",
+  "rule_status": "planned",
+  "conversion": {
+    "status": "ready",
+    "markdown": "<!-- page: 1 -->\n\n# Inspection report\n\nThe site was inspected on 3 March.\n\n<!-- page: 2 -->\n\nSigned by the inspection team. Defects found: none.\n",
+    "pages": 2,
+    "units": [
+      {
+        "kind": "page",
+        "number": 1,
+        "method": "pdf_text",
+        "chars": 51,
+        "images": 0,
+        "warnings": []
+      },
+      {
+        "kind": "page",
+        "number": 2,
+        "method": "ocr_model",
+        "chars": 51,
+        "images": 1,
+        "warnings": []
+      }
+    ],
+    "warnings": [],
+    "engine": {
+      "id": "builtin",
+      "release": "0.1.0"
+    }
+  },
+  "input": {
+    "status": "ready",
+    "error": null,
+    "text": "<!-- page: 1 -->\n\n# Inspection report\n\nThe site was inspected on 3 March.\n\n<!-- page: 2 -->\n\nSigned by the inspection team. Defects found: none.\n",
+    "units": [
+      {
+        "kind": "page",
+        "number": 1,
+        "method": "pdf_text",
+        "chars": 51,
+        "images": 0,
+        "warnings": []
+      },
+      {
+        "kind": "page",
+        "number": 2,
+        "method": "ocr_model",
+        "chars": 51,
+        "images": 1,
+        "warnings": []
+      }
+    ],
+    "warnings": [],
+    "images_found": 1,
+    "engine_format": "pdf",
+    "detected_format": "pdf",
+    "source_flags": [
+      "pdf_images"
+    ],
+    "engine": {
+      "id": "builtin",
+      "release": "0.1.0"
+    }
+  },
+  "expected": {
+    "status": "ready",
+    "text": "<!-- page: 1 -->\n\n# Inspection report\n\nThe site was inspected on 3 March.\n\n<!-- page: 2 -->\n\nSigned by the inspection team. Defects found: none.\n",
+    "pages": 2,
+    "extraction": "partial",
+    "agent_file": false,
+    "agent_file_why": [
+      "ocr",
+      "images"
+    ],
+    "warning_codes": [],
+    "ocr_units": 1,
+    "ocr_rerun": false,
+    "error_code": null,
+    "error_class": null,
+    "engine_format": "pdf",
+    "engine": {
+      "id": "builtin",
+      "release": "0.1.0"
+    }
+  },
+  "current": {
+    "status": "ready",
+    "text": "<!-- page: 1 -->\n\n# Inspection report\n\nThe site was inspected on 3 March.\n\n<!-- page: 2 -->\n\nSigned by the inspection team. Defects found: none.\n",
+    "pages": 2,
+    "extraction": "ready",
+    "agent_file": false,
+    "agent_file_why": [
+      "images"
+    ],
+    "warning_codes": [],
+    "ocr_units": 0,
+    "ocr_rerun": false,
+    "error_code": null,
+    "error_class": null,
+    "engine_format": "pdf",
+    "engine": {
+      "id": "builtin",
+      "release": "0.1.0"
+    }
+  }
+}

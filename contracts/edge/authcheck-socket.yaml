@@ -1,0 +1,484 @@
+openapi: 3.1.0
+info:
+  title: memory-authcheck — local socket for the gateway
+  version: "1.1.0"
+  x-version-notes:
+    - "Version 1.1.0: the first public version."
+  description: |
+    The server is the sign-in check service `memory-authcheck`,
+    the client is the internal gateway `memory-gateway` (`packages/gateway/src/authcheck-client.ts`). The transport is HTTP/1.1 over a
+    unix socket `/run/memory-authcheck/api.sock`; in user mode — `$XDG_RUNTIME_DIR/memory-authcheck/api.sock`.
+    The socket is reachable only by the gateway (file and directory permissions); the service has no network address and no key — the trust boundary is
+    the permissions on the socket. The client’s timeout is 5 s: no response — the gateway treats the service as unavailable.
+
+    The responses hold no passwords, no directory data beyond the listed flags, no e-mail and no full names. There is no revocation through the socket: the gateway
+    turns off access itself with database functions (`external_access_disable`, `edge_revoke_person`).
+
+    The sections of stages 1e (status, preflight, sweep) and 1f (second factor and recovery codes) are marked `x-stage`.
+servers:
+  - url: http://authcheck.invalid
+    description: The host name is not used — the request goes to the unix socket
+paths:
+  /v1/status:
+    get:
+      operationId: authcheckStatus
+      summary: Sign-in check service state
+      description: |
+        Whether sign-in check is open and why it is closed (“closed when unknown”): the AD lockout threshold or
+        the counter window is unknown, the primary domain controller is not set or unreachable, the failed-password counter cannot be read, the
+        password policy cannot be read, the channel to the directory is not allowed by the mode, there are no request keys, the anchors failed
+        validation, external sign-in is off.
+        The response makes no calls to the directory: the flags come from the last sweep and the last check.
+      responses:
+        '200':
+          description: Status
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Status' }
+  /v1/optin/preflight:
+    post:
+      operationId: authcheckOptinPreflight
+      summary: Whether a person can enable “External access”
+      description: |
+        Check for `POST /api/v1/me/external/enable`: the profile and the AD link, the groups `edge.login_groups`
+        (empty — nobody), `edge.deny_groups`, `adminCount` when `edge.deny_admin_count` is set, the account is enabled and not
+        expired, a memory administrator has a WebAuthn key. The directory is read with a service account; a
+        group read error is a refusal (`directory_unavailable`), not “allowed”. `needs_factor` — the AD lockout threshold is at most 3:
+        without a second factor the attempt budget is too small.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [person_id]
+              additionalProperties: false
+              properties:
+                person_id: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Decision
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Preflight' }
+        '400':
+          description: Body does not match the contract
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404':
+          description: No profile
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /v1/sweep/run:
+    post:
+      operationId: authcheckSweepRun
+      summary: Run a directory sweep now (test installation only)
+      description: |
+        Only when `access.test_sessions = true` (test installation, sweep tests); otherwise `404`, as for a path that does not exist.
+        The sweep runs in the background; a repeated start during a sweep gives `started: false`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+      responses:
+        '200':
+          description: Whether the sweep was started
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [started]
+                additionalProperties: false
+                properties:
+                  started: { type: boolean }
+        '404':
+          description: Not a test installation
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /v1/factor/status:
+    x-stage: 1f
+    post:
+      operationId: authcheckFactorStatus
+      summary: A person’s second factor — status
+      description: |
+        Mode (`mfa_policy`), method (`edge.mfa_provider`), whether a factor is set up, how many recovery codes remain and
+        whether it is time to renew them (`recovery_low` — at most `edge.recovery_low_threshold`), whether code sign-in is locked.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PersonRequest' }
+      responses:
+        '200':
+          description: Status
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FactorStatus' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /v1/factor/enroll/start:
+    x-stage: 1f
+    post:
+      operationId: authcheckFactorEnrollStart
+      summary: Start second factor setup
+      description: |
+        Fresh sign-in (`session_auth_time` no older than `edge.mfa_fresh_login_min`), first enrollment
+        (`edge.optin_first_confirm`: office network or support confirmation), no factor yet. A pending factor is created
+        (`mfa_factors.activated_at IS NULL`, expiry `edge.mfa_pending_ttl_min`); the secret is shown once.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EnrollStartRequest' }
+      responses:
+        '200':
+          description: Pending factor
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EnrollStart' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: '`factor_fresh_login_required`, `factor_first_confirm_required`, `already_enrolled`'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /v1/factor/replace/start:
+    x-stage: 1f
+    post:
+      operationId: authcheckFactorReplaceStart
+      summary: Start replacing the second factor (a new phone)
+      description: |
+        Like `enroll/start`, but instead of the first-enrollment condition it requires proof: a valid code of the current factor or a recovery
+        code (`proof.code`; a code of the current factor proves more than the
+        office network). The gateway sends `network` and `support_confirmed` here too (one body), the service ignores them. A wrong code
+        spends the code budget. The previous factor stays valid until the new one is confirmed (`enroll/confirm`). The service performs the start of a replacement and
+        the confirmation for one person in turn.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReplaceStartRequest' }
+      responses:
+        '200':
+          description: Pending factor
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EnrollStart' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: '`factor_fresh_login_required`, `proof_required` — no code, the code is wrong, or there is no factor'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '429':
+          description: '`factor_locked` — the code budget is used up'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /v1/factor/enroll/confirm:
+    x-stage: 1f
+    post:
+      operationId: authcheckFactorEnrollConfirm
+      summary: Confirm setup with the first code
+      description: |
+        The first code from the app enables the pending factor (the previous one is turned off if this is a replacement) and issues 10 recovery
+        codes — once. A wrong code — `ok: false` with a reason. The budget of wrong codes here belongs to the workspace (per
+        person) and is separate from the budget of external sign-in (per AD account): a lockout of external sign-in that someone
+        who knows the login could cause does not prevent setting up or replacing the factor from inside, and the other way round. The e-mail to the person is
+        “factor set up” or “phone replaced” (kind `security`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EnrollConfirmRequest' }
+      responses:
+        '200':
+          description: Result
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EnrollConfirm' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /v1/factor/reset:
+    x-stage: 1f
+    post:
+      operationId: authcheckFactorReset
+      summary: Second factor reset by support
+      description: |
+        Only for an approved second-signature request: the service consumes it itself with the function `approval_consume(approval_id,
+        'mfa.factor_reset', sha256('mfa.factor_reset' ‖ '\n' ‖ person_id))` — it does not read the requests table.
+        One action name everywhere: `mfa.factor_reset` is both the key `actions` in settings-policy.json and the route id of the reset in
+        contracts/admin/admin-routes.json (so `admin_approvals.action` and `subject_hash` of the request are derived from it).
+        It turns off the factor and the codes, ends the external sign-in sessions (connections are not touched), clears the wrong-code locks, writes
+        `mfa_factor_resets` (`by` is `requested_by`: the administrator who created the request; the gateway takes it from the request), an e-mail to the
+        person (kind `security`; `mailed` — whether it was queued) and the event `factor_reset` (high; `kind` — by the decision of the
+        request: `second_signature` or `basic_auto`). All in one transaction. A repeat of the same request is
+        `reset_approval_invalid`.
+
+        Modes: in advanced the request is approved by another administrator or a security auditor (`approved`); in
+        basic there is no second signature — the gateway sets the decision `basic_auto` with the function `approval_basic_auto` (only in basic and only
+        for a live session of the same administrator through the identity provider). `approval_consume` accepts `basic_auto` only while the mode
+        of the installation is basic: a decision set before advanced was enabled is no longer accepted by the service.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [person_id, approval_id, requested_by]
+              additionalProperties: false
+              properties:
+                person_id: { type: string, format: uuid }
+                approval_id: { type: string, format: uuid }
+                requested_by: { type: string, format: uuid, description: 'people.id of the administrator who created the request (the first signature) — goes into mfa_factor_resets.by' }
+      responses:
+        '200':
+          description: Reset
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [reset, sessions_revoked, mailed]
+                additionalProperties: false
+                properties:
+                  reset: { const: true }
+                  sessions_revoked: { type: integer, minimum: 0 }
+                  mailed: { type: boolean, description: 'The factor_reset e-mail is queued; false — the person is inactive, the login is not an e-mail address, or the e-mail failed' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: '`reset_approval_invalid` — there is no request, it is not approved (in basic — no `basic_auto` decision, or the mode is already advanced), it has expired, it is already consumed, or it concerns another person'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /v1/recovery/issue:
+    x-stage: 1f
+    post:
+      operationId: authcheckRecoveryIssue
+      summary: New recovery codes
+      description: |
+        Fresh sign-in and proof by code (`proof.code`). The earlier unused codes expire; 10 new ones are issued — once.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [person_id, session_auth_time, proof]
+              additionalProperties: false
+              properties:
+                person_id: { type: string, format: uuid }
+                session_auth_time: { type: string, format: date-time }
+                proof: { $ref: '#/components/schemas/Proof' }
+      responses:
+        '200':
+          description: Codes
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [recovery_codes]
+                additionalProperties: false
+                properties:
+                  recovery_codes: { $ref: '#/components/schemas/RecoveryCodes' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: '`factor_fresh_login_required`, `proof_required` — no code, the code is wrong, or there is no factor'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '429':
+          description: '`factor_locked`'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+components:
+  schemas:
+    ClosedReason:
+      type: string
+      enum: [threshold_unknown, window_unknown, pdc_unset, pdc_unreachable, counter_unreadable, pso_unreadable, tls_none, no_keys, anchors_invalid, login_disabled,
+             settings_invalid, groups_unreadable, pdc_not_emulator]
+      description: |
+        Why the sign-in check is closed: `threshold_unknown` — `edge.ad_lockout_threshold = -1`; `window_unknown` —
+        `edge.ad_lockout_window_min = -1`; `pdc_unset` — `edge.ad_pdc` is empty; `pdc_unreachable` — the primary domain controller does not
+        answer; `counter_unreadable` — `badPwdCount` cannot be read; `pso_unreadable` — the password policy (PSO) cannot be read;
+        `tls_none` — the channel to the directory is not allowed by the mode: in advanced — not LDAPS; in basic — unencrypted without
+        `ldap.insecure_ack`, or not LDAPS when `edge.ldap_require_ldaps` is set; `no_keys` — no private request key or no public signing keys of the edge in the anchors;
+        `anchors_invalid` — the anchors failed validation; `login_disabled` — `edge.login_enabled = false`;
+        `settings_invalid` — the service settings are corrupted (including when the group list `edge.login_groups` or
+        `edge.deny_groups` in the settings cannot be parsed); `groups_unreadable` — the sign-in and deny groups cannot be read in the directory;
+        `pdc_not_emulator` — `edge.ad_pdc` is not from `ldap.servers` (by the same name or IP; the service does not go to another address), is not the
+        PDC emulator (the failure counter there is inaccurate) or the role is not visible.
+        `ok: false` without `closed_reason` is also “closed” (a reason of a service that is not yet in this list).
+    Status:
+      type: object
+      required: [ok, kids, anchors_serial, sweep_ok, version]
+      additionalProperties: false
+      properties:
+        ok: { type: boolean, description: 'The sign-in check is open; false without closed_reason is also closed' }
+        closed_reason: { $ref: '#/components/schemas/ClosedReason' }
+        kids:
+          type: array
+          maxItems: 2
+          description: IDs of the X25519 keys for which the service accepts requests
+          items: { type: integer, minimum: 1, maximum: 65535 }
+        anchors_serial: { type: [integer, 'null'], minimum: 1, description: 'serial of the accepted anchors; null — no anchors' }
+        pause_until: { type: string, format: date-time, description: 'The current pause of external sign-in (spraying, manual, switch)' }
+        last_sweep_at: { type: string, format: date-time }
+        sweep_ok: { type: boolean, description: 'The last directory sweep succeeded' }
+        version: { type: string, maxLength: 100 }
+    PreflightReason:
+      type: string
+      enum: [closed, person_inactive, no_directory_link, not_in_login_groups, in_deny_groups, admin_count, ad_disabled, ad_expired, ad_deleted, admin_no_webauthn, directory_unavailable,
+             needs_factor]
+      description: |
+        Refusal codes (without directory data): `closed` — the service cannot check the person at all (the anchors failed
+        validation, `closed_reason = anchors_invalid`, or the group list in the settings is corrupted, `settings_invalid`); the profile
+        is inactive; there is no confirmed AD link; not in `edge.login_groups` (empty — nobody); in `edge.deny_groups`;
+        `adminCount = 1`; the account is disabled, expired, deleted; a memory administrator without a WebAuthn key; the directory
+        did not answer; `needs_factor` — the AD lockout threshold is at most 3, enabling without a second factor is not allowed (the same flag
+        as the field `needs_factor`; the workspace shows “a second factor is needed”).
+
+        What is deliberately absent: switched-off external sign-in (`edge.login_enabled = false`) and reasons that close only
+        the password check (the lockout threshold and window are unknown, the PDC is not set or unreachable, the counter or PSO cannot be read,
+        there are no request keys) do not prevent enabling “External access” — it can be enabled in advance;
+        external sign-in stays closed meanwhile, which is visible in `GET /v1/status`.
+    Preflight:
+      type: object
+      required: [allowed, reasons, needs_factor, ad]
+      additionalProperties: false
+      properties:
+        allowed: { type: boolean }
+        reasons: { type: array, maxItems: 12, uniqueItems: true, items: { $ref: '#/components/schemas/PreflightReason' } }
+        needs_factor: { type: boolean, description: 'AD lockout threshold ≤ 3: enabling without a second factor is not allowed' }
+        ad:
+          type: object
+          required: [in_group, denied, admin_count, enabled, locked]
+          additionalProperties: false
+          properties:
+            in_group: { type: boolean }
+            denied: { type: boolean }
+            admin_count: { type: boolean }
+            enabled: { type: boolean }
+            locked: { type: boolean, description: 'Information only: a lockout is no reason to refuse enabling or to revoke' }
+    PersonRequest:
+      type: object
+      required: [person_id]
+      additionalProperties: false
+      properties:
+        person_id: { type: string, format: uuid }
+    Proof:
+      type: object
+      required: [code]
+      additionalProperties: false
+      description: Current second factor code (6 digits) or recovery code
+      properties:
+        code: { type: string, minLength: 6, maxLength: 32, pattern: '^[0-9A-Za-z-]{6,32}$' }
+    EnrollStartRequest:
+      type: object
+      required: [person_id, session_auth_time, network, support_confirmed]
+      additionalProperties: false
+      properties:
+        person_id: { type: string, format: uuid }
+        session_auth_time: { type: string, format: date-time, description: 'Authentication time of the workspace session (user_sessions.auth_time)' }
+        network: { enum: [office, other], description: 'Whether the browser’s address is in edge.office_networks (office network, not VPN); determined by the gateway' }
+        support_confirmed: { type: boolean, description: 'There is a support confirmation not older than a day (external_access_confirmations; whether enabling “External access” has used it up does not matter)' }
+        label: { type: string, minLength: 1, maxLength: 40, description: 'Name of the phone for the person' }
+    ReplaceStartRequest:
+      type: object
+      required: [person_id, session_auth_time, network, support_confirmed, proof]
+      additionalProperties: false
+      properties:
+        person_id: { type: string, format: uuid }
+        session_auth_time: { type: string, format: date-time }
+        network: { enum: [office, other] }
+        support_confirmed: { type: boolean }
+        label: { type: string, minLength: 1, maxLength: 40 }
+        proof: { $ref: '#/components/schemas/Proof' }
+    EnrollStart:
+      type: object
+      required: [pending_id, otpauth_uri, secret_text, expires_at]
+      additionalProperties: false
+      properties:
+        pending_id: { type: string, format: uuid }
+        otpauth_uri: { type: string, maxLength: 512, pattern: '^otpauth://totp/', description: 'For the QR code; not cached, not written to the log' }
+        secret_text: { type: string, maxLength: 64, description: 'The same secret in base32, in groups — for manual entry' }
+        expires_at: { type: string, format: date-time }
+    EnrollConfirmRequest:
+      type: object
+      required: [person_id, pending_id, code]
+      additionalProperties: false
+      properties:
+        person_id: { type: string, format: uuid }
+        pending_id: { type: string, format: uuid }
+        code: { type: string, pattern: '^[0-9]{6}$' }
+    EnrollConfirm:
+      oneOf:
+        - type: object
+          required: [ok, recovery_codes]
+          additionalProperties: false
+          properties:
+            ok: { const: true }
+            recovery_codes: { $ref: '#/components/schemas/RecoveryCodes' }
+        - type: object
+          required: [ok, reason]
+          additionalProperties: false
+          properties:
+            ok: { const: false }
+            reason: { enum: [bad_code, expired, locked] }
+    RecoveryCodes:
+      type: array
+      minItems: 10
+      maxItems: 10
+      uniqueItems: true
+      description: Shown once; only an HMAC is stored inside
+      items: { type: string, minLength: 8, maxLength: 32 }
+    FactorStatus:
+      type: object
+      required: [mode, provider, enrolled, recovery_left, recovery_low]
+      additionalProperties: false
+      properties:
+        mode: { enum: [off, optional, required], description: 'Effective mode: the setting and the floor from the anchors' }
+        provider: { type: string, maxLength: 32 }
+        enrolled: { type: boolean }
+        label: { type: string, maxLength: 40 }
+        activated_at: { type: string, format: date-time }
+        recovery_left: { type: integer, minimum: 0, maximum: 10 }
+        recovery_low: { type: boolean }
+        locked_until: { type: string, format: date-time }
+    Error:
+      type: object
+      required: [code]
+      additionalProperties: false
+      properties:
+        code: { type: string, pattern: '^[a-z][a-z0-9_]{0,63}$' }
+  responses:
+    NotFound:
+      description: '`not_found` — no profile: the person is not in the memory or is inactive'
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    BadRequest:
+      description: Body does not match the contract
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unavailable:
+      description: '`factor_unavailable` — there are no factor keys or the database is unavailable'
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }

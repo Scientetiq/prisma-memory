@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="820" height="200" viewBox="0 0 820 200" role="img" aria-label="Prisma Memory — company memory for AI agents">
+  <defs>
+    <linearGradient id="pm-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFFEFB"/>
+      <stop offset="1" stop-color="#F7F5F0"/>
+    </linearGradient>
+    <linearGradient id="pm-mark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2A2720"/>
+      <stop offset="1" stop-color="#16140F"/>
+    </linearGradient>
+  </defs>
+  <rect width="820" height="200" rx="20" fill="url(#pm-bg)"/>
+  <rect x="0.5" y="0.5" width="819" height="199" rx="19.5" fill="none" stroke="#D8D3C7"/>
+  <g opacity="0.55" fill="none" stroke-width="1.2" stroke-linecap="round">
+    <path d="M622 112 L790 52" stroke="#4F63FF"/>
+    <path d="M622 112 L796 98" stroke="#1DB863"/>
+    <path d="M622 112 L790 146" stroke="#FFB81F"/>
+    <path d="M622 112 L770 182" stroke="#FF5B36"/>
+    <path d="M560 112 L622 112" stroke="#B3AEA3"/>
+    <circle cx="622" cy="112" r="3" stroke="#B3AEA3"/>
+    <circle cx="790" cy="52" r="3" stroke="#4F63FF"/><circle cx="796" cy="98" r="3" stroke="#1DB863"/>
+    <circle cx="790" cy="146" r="3" stroke="#FFB81F"/><circle cx="770" cy="182" r="3" stroke="#FF5B36"/>
+  </g>
+  <rect x="56" y="52" width="96" height="96" rx="24" fill="url(#pm-mark)"/>
+  <g transform="translate(68 64) scale(3)" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 3.5 21 19.5H3Z" stroke="#FFFEFB"/>
+    <path d="M16.8 12 22.6 10.2" stroke="#4F63FF" stroke-width="1.2"/>
+    <path d="M17.6 13.4 22.9 13.2" stroke="#1DB863" stroke-width="1.2"/>
+    <path d="M18.4 14.8 22.6 16.2" stroke="#FFB81F" stroke-width="1.2"/>
+  </g>
+  <text x="184" y="102" font-family="Inter, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="52" font-weight="700" letter-spacing="-1" fill="#16140F">Prisma <tspan fill="#4F63FF">Memory</tspan></text>
+  <text x="186" y="140" font-family="Inter, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="21" fill="#57534A">Company memory for AI agents</text>
+</svg>

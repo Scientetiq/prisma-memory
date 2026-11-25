@@ -1,0 +1,21 @@
+{
+  "type": "meeting",
+  "external_id": "call-2026-10-03-1000",
+  "title": "Weekly sync",
+  "started_at": "2026-10-03T10:00:00Z",
+  "duration_sec": 1800,
+  "language": "en",
+  "participants": [
+    {
+      "name": "Alex Doe",
+      "email": "alex@example.com",
+      "attended": true,
+      "role": "host"
+    },
+    {
+      "email": "sam@example.com",
+      "attended": false,
+      "role": "invitee"
+    }
+  ]
+}

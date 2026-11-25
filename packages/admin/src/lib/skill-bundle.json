@@ -1,0 +1,16 @@
+{
+  "$comment": [
+    "Skill package description: the one place for the skill name, its folder, the signing namespace of the manifest and",
+    "the prefix of its MCP resources. The gateway (packages/shared/src/skill-bundle.ts), the edge tools",
+    "and the validator read it. After an edit the bundle tool rewrites the generated copies,",
+    "among them the workplace byte copy",
+    "packages/admin/src/lib/skill-bundle.json. contracts/edge/routes.yaml, contracts/mcp-tools.json and",
+    "contracts/openapi-ingest.yaml must name the same skill.",
+    "dir is relative to the repository root and lies under contracts/; uri_prefix is skill://<name>/."
+  ],
+  "name": "prisma-memory",
+  "dir": "contracts/skills/prisma-memory",
+  "signature_namespace": "prisma-memory-skill",
+  "uri_prefix": "skill://prisma-memory/",
+  "default_locale": "en"
+}

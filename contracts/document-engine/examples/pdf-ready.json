@@ -1,0 +1,84 @@
+{
+  "title": "Ready PDF",
+  "description": "A PDF with a text layer on both pages, no pictures and no hidden parts. Extraction is ready, and agents may receive the file.",
+  "content_locale": "en",
+  "rule_status": "current",
+  "conversion": {
+    "status": "ready",
+    "markdown": "<!-- page: 1 -->\n\n# Supply agreement\n\nThe supplier delivers the goods to the central warehouse.\n\n<!-- page: 2 -->\n\n## Delivery terms\n\nDelivery takes place within ten working days after the order.\n",
+    "pages": 2,
+    "units": [
+      {
+        "kind": "page",
+        "number": 1,
+        "method": "pdf_text",
+        "chars": 73,
+        "images": 0,
+        "warnings": []
+      },
+      {
+        "kind": "page",
+        "number": 2,
+        "method": "pdf_text",
+        "chars": 75,
+        "images": 0,
+        "warnings": []
+      }
+    ],
+    "warnings": [],
+    "engine": {
+      "id": "builtin",
+      "release": "0.1.0"
+    }
+  },
+  "input": {
+    "status": "ready",
+    "error": null,
+    "text": "<!-- page: 1 -->\n\n# Supply agreement\n\nThe supplier delivers the goods to the central warehouse.\n\n<!-- page: 2 -->\n\n## Delivery terms\n\nDelivery takes place within ten working days after the order.\n",
+    "units": [
+      {
+        "kind": "page",
+        "number": 1,
+        "method": "pdf_text",
+        "chars": 73,
+        "images": 0,
+        "warnings": []
+      },
+      {
+        "kind": "page",
+        "number": 2,
+        "method": "pdf_text",
+        "chars": 75,
+        "images": 0,
+        "warnings": []
+      }
+    ],
+    "warnings": [],
+    "images_found": 0,
+    "engine_format": "pdf",
+    "detected_format": "pdf",
+    "source_flags": [],
+    "engine": {
+      "id": "builtin",
+      "release": "0.1.0"
+    }
+  },
+  "expected": {
+    "status": "ready",
+    "text": "<!-- page: 1 -->\n\n# Supply agreement\n\nThe supplier delivers the goods to the central warehouse.\n\n<!-- page: 2 -->\n\n## Delivery terms\n\nDelivery takes place within ten working days after the order.\n",
+    "pages": 2,
+    "extraction": "ready",
+    "agent_file": true,
+    "agent_file_why": [],
+    "warning_codes": [],
+    "ocr_units": 0,
+    "ocr_rerun": false,
+    "error_code": null,
+    "error_class": null,
+    "engine_format": "pdf",
+    "engine": {
+      "id": "builtin",
+      "release": "0.1.0"
+    }
+  }
+}

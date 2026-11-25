@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://memory.internal/connectors/schemas/entity.schema.json",
+  "title": "entity",
+  "description": "An entity of an external system (a company, a deal) for the entity registry. The system code is the connector's configured system, never a field of the item.",
+  "type": "object",
+  "required": [
+    "type",
+    "external_id",
+    "kind",
+    "id",
+    "name"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "type": {
+      "const": "entity"
+    },
+    "external_id": {
+      "$ref": "item.schema.json#/$defs/ExternalId"
+    },
+    "external_version": {
+      "$ref": "item.schema.json#/$defs/ExternalVersion"
+    },
+    "occurred_at": {
+      "$ref": "item.schema.json#/$defs/Timestamp"
+    },
+    "url": {
+      "$ref": "item.schema.json#/$defs/Url"
+    },
+    "kind": {
+      "$ref": "item.schema.json#/$defs/EntityKind"
+    },
+    "id": {
+      "description": "Id of the entity in its system.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "not": {
+        "pattern": "[\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029\\u202a-\\u202e\\u2066-\\u2069]"
+      }
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300,
+      "not": {
+        "pattern": "[\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029\\u202a-\\u202e\\u2066-\\u2069]"
+      }
+    },
+    "aliases": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 300,
+        "not": {
+          "pattern": "[\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029\\u202a-\\u202e\\u2066-\\u2069]"
+        }
+      }
+    },
+    "attrs": {
+      "description": "Up to 20 scalar attributes. Reserved names are refused.",
+      "type": "object",
+      "maxProperties": 20,
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]{0,39}$",
+        "not": {
+          "anyOf": [
+            {
+              "pattern": "[\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029\\u202a-\\u202e\\u2066-\\u2069]"
+            },
+            {
+              "enum": [
+                "aliases",
+                "source",
+                "source_deleted_at"
+              ]
+            }
+          ]
+        }
+      },
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": "string",
+            "minLength": 0,
+            "maxLength": 200,
+            "not": {
+              "pattern": "[\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029\\u202a-\\u202e\\u2066-\\u2069]"
+            }
+          },
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "number",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          }
+        ]
+      }
+    }
+  }
+}

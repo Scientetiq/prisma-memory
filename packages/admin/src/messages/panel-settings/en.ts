@@ -1,0 +1,18 @@
+export const PAGE_TEXT = {
+  title: "Settings",
+  lead: "All memory settings are stored here, in the database, rather than in files or environment variables. Changes take effect without a restart: memory reloads settings every minute.",
+  ranking: "Ranking and topic dictionary",
+  anchors: "Trust anchors",
+  loadWhat: "settings",
+  missingTitle: (n: number): string => `Required settings are missing (${n}):`,
+  missingHint: ". While they are empty, memory is unavailable to colleagues and their agents. Only this panel remains open.",
+  sections: "Settings sections",
+  missingBadge: "Missing required settings",
+  unknownSection: "This settings section is not yet known to the panel. Labels use technical names.",
+  empty: "There are no settings in this section yet.",
+  converter: "Document converter",
+  converterHint: "Sign in with the service account (converter login and password above) and check its roles: <upload>admin_upload</upload> and <export>export_manager</export> are required. Save settings before checking.",
+  checkConverter: "Check converter connection",
+  checking: "Checking…",
+  converterCheckHint: "This check changes nothing: sign in, ask “who am I”, sign out. The audit log records the check without credentials.",
+};

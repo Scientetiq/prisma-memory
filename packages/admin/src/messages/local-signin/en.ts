@@ -1,0 +1,15 @@
+export const LOCAL_SIGNIN = {
+  lead: "Sign in with your e-mail address and password.",
+  email: "E-mail",
+  password: "Password",
+  signIn: "Sign in",
+  signingIn: "Signing in…",
+  enterBoth: "Enter your e-mail address and password.",
+  invalid: "Wrong e-mail or password.",
+  limited: (value1: string | number | null | undefined): string => `Too many failed sign-in attempts. Try again in ${value1} min.`,
+  inFlight: "A sign-in is already being checked. Try again in a few seconds.",
+  busy: "The server is busy checking other sign-ins. Try again in a few seconds.",
+  badRequest: "Enter an e-mail address of up to 200 characters and a password of up to 1024 characters.",
+  off: "Sign-in with e-mail and password is not enabled here.",
+  helpPassword: "Use the e-mail address your administrator registered and the password you set from the administrator’s link. If you forgot the password, ask your memory administrator for a new link.",
+};

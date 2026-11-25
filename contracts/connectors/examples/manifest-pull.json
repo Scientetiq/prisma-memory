@@ -1,0 +1,46 @@
+{
+  "kind": "http_registry",
+  "sdk": 1,
+  "version": "1.0.0",
+  "title": "HTTP registry",
+  "description": "Pulls companies and deals from a JSON endpoint.",
+  "verified": "mock_only",
+  "scopes": [
+    "instance"
+  ],
+  "produces": [
+    "entity"
+  ],
+  "capabilities": {
+    "pull": true,
+    "entity_lookup": [
+      "company",
+      "deal"
+    ]
+  },
+  "config": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "language": {
+        "type": "string",
+        "default": "en"
+      }
+    }
+  },
+  "secrets": [
+    {
+      "name": "api_token",
+      "title": "API token",
+      "required": true
+    }
+  ],
+  "egress": {
+    "hostFromConfig": "base_url"
+  },
+  "limits": {
+    "minIntervalSec": 60,
+    "maxItemsPerRun": 500,
+    "maxBytesPerItem": 8388608
+  }
+}

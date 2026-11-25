@@ -1,0 +1,47 @@
+{
+  "containers": [
+    {
+      "kind": "slide",
+      "number": 1,
+      "hidden": false,
+      "title": "Project plan",
+      "method": "ooxml",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "Kick-off in March"
+        },
+        {
+          "type": "paragraph",
+          "text": "Pilot in two teams"
+        }
+      ]
+    },
+    {
+      "kind": "slide",
+      "number": 2,
+      "hidden": true,
+      "title": "Draft ideas",
+      "method": "ooxml",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "Ideas that are not final yet."
+        }
+      ]
+    },
+    {
+      "kind": "slide",
+      "number": 3,
+      "hidden": false,
+      "title": "Next steps",
+      "method": "ooxml",
+      "blocks": [
+        {
+          "type": "paragraph",
+          "text": "Agree the pilot scope."
+        }
+      ]
+    }
+  ]
+}

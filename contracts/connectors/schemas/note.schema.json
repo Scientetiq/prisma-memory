@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://memory.internal/connectors/schemas/note.schema.json",
+  "title": "note",
+  "description": "A short note. `kind` says what it is; the default is a plain note.",
+  "type": "object",
+  "required": [
+    "type",
+    "external_id",
+    "text"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "type": {
+      "const": "note"
+    },
+    "external_id": {
+      "$ref": "item.schema.json#/$defs/ExternalId"
+    },
+    "external_version": {
+      "$ref": "item.schema.json#/$defs/ExternalVersion"
+    },
+    "occurred_at": {
+      "$ref": "item.schema.json#/$defs/Timestamp"
+    },
+    "title": {
+      "$ref": "item.schema.json#/$defs/Title"
+    },
+    "url": {
+      "$ref": "item.schema.json#/$defs/Url"
+    },
+    "entities": {
+      "$ref": "item.schema.json#/$defs/Entities"
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 20000
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "note",
+        "decision",
+        "action",
+        "question_risk",
+        "fact"
+      ]
+    }
+  }
+}

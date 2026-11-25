@@ -1,0 +1,13 @@
+{
+  "format": "prisma-provision/1",
+  "$comment": "Template for the OpenID Connect sign-in settings. Copy it to oidc.json, then replace the example host names, the client ID and the placeholder secret with your own values. Remove private_networks when the issuer has a public address. If a private CA signed the provider's certificate, add an item { \"category\": \"oidc\", \"key\": \"ca_cert\", \"value\": \"<PEM text>\" }. Apply the file on standard input, with a dry run first: deploy/bin/memory-admin provision apply - --dry-run < oidc.json, then deploy/bin/memory-admin provision apply - < oidc.json.",
+  "items": [
+    { "category": "oidc", "key": "issuer", "value": "https://idp.example.com/realms/example" },
+    { "category": "oidc", "key": "client_id", "value": "memory" },
+    { "category": "oidc", "key": "client_secret", "value": "replace-with-the-client-secret" },
+    { "category": "oidc", "key": "redirect_uri", "value": "https://memory.example.com/auth/oidc/callback" },
+    { "category": "oidc", "key": "login_groups", "value": ["/memory-users"] },
+    { "category": "oidc", "key": "private_networks", "value": ["10.0.0.5/32"] },
+    { "category": "oidc", "key": "enabled", "value": true }
+  ]
+}

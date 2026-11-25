@@ -1,0 +1,33 @@
+import type { Messages } from "../../i18n/core";
+import * as en from "./en";
+
+export const text: Messages<typeof en.text> = {
+  keyNotAccepted: "Ключ не принят",
+  theInstanceIsNotServingRequests: "Инстанс не обслуживает запросы (fail-closed)",
+  requestLimitExceeded: "Превышен лимит обращений",
+  gatewayReturnedHttpError: (value0: string | number | null | undefined): string => `Гейтвей ответил ошибкой HTTP ${value0}`,
+  mcpProtocolError: "Ошибка протокола MCP",
+  gatewayResponseIsMissingResult: "Гейтвей вернул ответ без result",
+  toolReturnedAnError: "Инструмент вернул ошибку",
+  since: (value0: string | number | null | undefined): string => ` с ${value0}`,
+  thisSpaceIsArchivedItIs: (value0: string | number | null | undefined): string => `Пространство в архиве${value0}: здесь только чтение. Добавлять записи, переносить их сюда и отсюда, показывать агентам и восстанавливать из корзины нельзя. Вернуть пространство из архива может его владелец или администратор памяти.`,
+  s: (value0: string | number | null | undefined): string => `${value0} с`,
+  aFewSeconds: "несколько секунд",
+  memoryIsBusyWithTooMany: (value0: string | number | null | undefined): string => `Память сейчас перегружена запросами. Повторите через ${value0}.`,
+  memoryIsUnavailableTryAgainIn: "Память сейчас недоступна — попробуйте через несколько минут. Если не проходит — сообщите администратору памяти.",
+  waitSAndTryAgain: (value0: string | number | null | undefined): string => `подождите ${value0} с и повторите`,
+  waitAMomentAndTryAgain: "подождите немного и повторите",
+  tooFrequent: (value0: string | number | null | undefined): string => `Слишком часто — ${value0}.`,
+  thisIsAClosedRecordOnly: "Это закрытая запись: её читают только люди с доступом здесь, в рабочем месте, — ИИ-агенты её не видят. Если запись ваша, её можно показать агентам на её странице.",
+  theRecordSectionOrSpaceWas: "Запись, раздел или пространство не найдены либо недоступны вам.",
+  memoryIsNotRespondingTryAgain: "Память не отвечает — попробуйте через несколько минут.",
+  theConnectionToMemoryWasInterrupted: "Связь с памятью прервалась, и не удалось узнать, сохранилось ли. Проверьте список перед повтором.",
+  theConnectionToMemoryWasInterrupted2: "Связь с памятью прервалась, и не удалось узнать, сохранилось ли. Проверьте список перед повтором — повтор того же текста копию не создаст.",
+  thisActionIsUnavailableToYou: "Это действие вам недоступно.",
+  checkTheInformationYouEntered: "Проверьте введённые данные.",
+  memoryReturnedAnErrorTryAgain: "Память ответила ошибкой — попробуйте ещё раз. Если повторяется — сообщите администратору памяти.",
+  cannotShowToAgents: (value0: string | number | null | undefined): string => `Показать агентам нельзя: ${value0}`,
+  theRecordWasNotAcceptedAs: "Запись не принята в открытый класс: похоже на данные, которым там не место.",
+  tooMuchData: (value0: string | number | null | undefined): string => `Слишком большой объём: ${value0}`,
+  theOperationIsStillRunning: (value0: string | number | null | undefined): string => `Операция ещё выполняется: ${value0}`,
+};

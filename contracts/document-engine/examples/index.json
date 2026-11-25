@@ -1,0 +1,119 @@
+{
+  "description": "Worked examples of the document-engine contract. Each entry names the schema that the file validates against; a DocModel entry names the outcome examples whose units it yields.",
+  "examples": [
+    {
+      "file": "pdf-ready.json",
+      "schema": "https://memory.internal/document-engine/schemas/DeriveOutcomeInput.json#/$defs/OutcomeExample",
+      "title": "Ready PDF"
+    },
+    {
+      "file": "pdf-partial-scan.json",
+      "schema": "https://memory.internal/document-engine/schemas/DeriveOutcomeInput.json#/$defs/OutcomeExample",
+      "title": "Partial with a scanned page"
+    },
+    {
+      "file": "pdf-broken-text-layer.json",
+      "schema": "https://memory.internal/document-engine/schemas/DeriveOutcomeInput.json#/$defs/OutcomeExample",
+      "title": "Broken PDF text layer"
+    },
+    {
+      "file": "xlsx-table-truncated.json",
+      "schema": "https://memory.internal/document-engine/schemas/DeriveOutcomeInput.json#/$defs/OutcomeExample",
+      "title": "Truncated table stays ready"
+    },
+    {
+      "file": "pptx-hidden-slide.json",
+      "schema": "https://memory.internal/document-engine/schemas/DeriveOutcomeInput.json#/$defs/OutcomeExample",
+      "title": "PPTX with a hidden slide"
+    },
+    {
+      "file": "pptx-hidden-slide-ru.json",
+      "schema": "https://memory.internal/document-engine/schemas/DeriveOutcomeInput.json#/$defs/OutcomeExample",
+      "title": "PPTX with a hidden slide, ru markers"
+    },
+    {
+      "file": "office-xlsx-hidden-sheet.json",
+      "schema": "https://memory.internal/document-engine/schemas/DeriveOutcomeInput.json#/$defs/OutcomeExample",
+      "title": "Office file: text to agents, file only to people"
+    },
+    {
+      "file": "docx-pages-null.json",
+      "schema": "https://memory.internal/document-engine/schemas/DeriveOutcomeInput.json#/$defs/OutcomeExample",
+      "title": "DOCX without pages"
+    },
+    {
+      "file": "pdf-failed-encrypted.json",
+      "schema": "https://memory.internal/document-engine/schemas/DeriveOutcomeInput.json#/$defs/OutcomeExample",
+      "title": "Failed run: encrypted PDF"
+    },
+    {
+      "file": "pptx-empty-slides.json",
+      "schema": "https://memory.internal/document-engine/schemas/DeriveOutcomeInput.json#/$defs/OutcomeExample",
+      "title": "Empty presentation"
+    },
+    {
+      "file": "pdf-unrecognised-scan.json",
+      "schema": "https://memory.internal/document-engine/schemas/DeriveOutcomeInput.json#/$defs/OutcomeExample",
+      "title": "Unrecognised scan page"
+    },
+    {
+      "file": "pdf-blank-page.json",
+      "schema": "https://memory.internal/document-engine/schemas/DeriveOutcomeInput.json#/$defs/OutcomeExample",
+      "title": "PDF with a blank page stays ready"
+    },
+    {
+      "file": "docmodel-pdf-ready.json",
+      "schema": "https://memory.internal/document-engine/schemas/DocModel.json",
+      "title": "DocModel of the ready PDF",
+      "units_of": [
+        "pdf-ready.json"
+      ]
+    },
+    {
+      "file": "docmodel-pptx-hidden-slide.json",
+      "schema": "https://memory.internal/document-engine/schemas/DocModel.json",
+      "title": "DocModel of the deck with a hidden slide",
+      "units_of": [
+        "pptx-hidden-slide.json",
+        "pptx-hidden-slide-ru.json"
+      ]
+    },
+    {
+      "file": "docmodel-xlsx-hidden-sheet.json",
+      "schema": "https://memory.internal/document-engine/schemas/DocModel.json",
+      "title": "DocModel of the spreadsheet with a hidden sheet",
+      "units_of": [
+        "office-xlsx-hidden-sheet.json"
+      ]
+    },
+    {
+      "file": "docmodel-docx-footnote.json",
+      "schema": "https://memory.internal/document-engine/schemas/DocModel.json",
+      "title": "DocModel of the DOCX body",
+      "units_of": [
+        "docx-pages-null.json"
+      ]
+    },
+    {
+      "file": "docmodel-xlsx-hidden-rows.json",
+      "schema": "https://memory.internal/document-engine/schemas/DocModel.json",
+      "title": "DocModel with a hidden row and a hidden column"
+    },
+    {
+      "file": "docmodel-pptx-empty-slides.json",
+      "schema": "https://memory.internal/document-engine/schemas/DocModel.json",
+      "title": "DocModel of the empty presentation",
+      "units_of": [
+        "pptx-empty-slides.json"
+      ]
+    },
+    {
+      "file": "docmodel-pdf-unrecognised-scan.json",
+      "schema": "https://memory.internal/document-engine/schemas/DocModel.json",
+      "title": "DocModel of the unrecognised scan page",
+      "units_of": [
+        "pdf-unrecognised-scan.json"
+      ]
+    }
+  ]
+}

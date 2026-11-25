@@ -1,0 +1,18 @@
+{
+  "containers": [
+    {
+      "kind": "slide",
+      "number": 1,
+      "hidden": false,
+      "method": "ooxml",
+      "blocks": []
+    },
+    {
+      "kind": "slide",
+      "number": 2,
+      "hidden": false,
+      "method": "ooxml",
+      "blocks": []
+    }
+  ]
+}

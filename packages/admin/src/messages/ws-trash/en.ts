@@ -1,0 +1,22 @@
+// English messages for this area.
+export const WS_TRASH_MESSAGES = {
+    closedRecordTitleHidden: "closed record — title hidden",
+    untitled: "untitled",
+    archived: "archived",
+    author: "author {value1}",
+    created: "created {value1}",
+    deleted: "deleted {value1}",
+    restore: "Restore",
+    cancel: "Cancel",
+    deletePermanently: "Delete permanently",
+    moreDetails: "More details",
+    deletedRecords: "Deleted records",
+    trash: "trash",
+    backToTheStartOf: "Back to the start of trash",
+    nothingMoreHere: "Nothing more here.",
+    trashIsEmptyThereAre: "Trash is empty: there are no deleted records.",
+    pages: "Pages",
+    shown: "shown: {value1}",
+    backToStart: "← back to start",
+    next: "next →",
+};

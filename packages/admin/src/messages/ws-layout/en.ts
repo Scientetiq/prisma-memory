@@ -1,0 +1,16 @@
+export const layoutText = {
+  manager: "manager",
+  employee: "employee",
+  leavePreview: "Leave preview",
+  workspace: "Workspace",
+  yourAgentConnectionExpiresSoonCheck: "<tag0>Your agent connection expires soon.</tag0> Check the expiry date and sign-in steps in <tag1>“Connect an agent”</tag1>. ",
+  yourAgentKeyExpiresSoon: "Your agent key expires soon",
+  yourAgentKeysExpireSoon: (value0: string | number | null | undefined): string => `Your agent keys expire soon (${value0})`,
+  validThrough: "{value0}“{value1}” — valid through <tag0/>",
+  connectionsCannotBeExtendedReconnectYour: "Connections cannot be extended: reconnect your agent with your company account, without a key — <tag0>“Connect an agent”</tag0>. Or issue a new key in <tag1>“Keys and agents”</tag1> and replace it in the agent.",
+  keysCannotBeExtendedIssueA: "Keys cannot be extended: issue a new one in <tag0>“Keys and agents”</tag0> and replace it in the agent.",
+  preview: "preview",
+  workspace2: "workspace",
+  signOutOfTheWorkspace: "Sign out of the workspace",
+  ifThisContinuesContactTheAdministrator: "<tag0>{value0}</tag0> If this continues, contact the administrator. <tag1/><tag2/>",
+};

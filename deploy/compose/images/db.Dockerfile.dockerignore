@@ -1,0 +1,5 @@
+# Build context of db.Dockerfile (the repository root): an allowlist — nothing enters but the files the image copies.
+*
+!contracts/schema/*.sql
+!contracts/schema/manifest.tsv
+!deploy/compose/db/

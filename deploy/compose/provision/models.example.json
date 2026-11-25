@@ -1,0 +1,17 @@
+{
+  "format": "prisma-provision/1",
+  "$comment": "Example: the model connections of a fresh install. Copy this file, put in the address of your model endpoint and your model names, and apply the copy on the server: deploy/bin/memory-admin provision apply - < models.json (add --dry-run first to see what would be written). Each item is written only where nobody has changed the setting. The two connections here use one OpenAI-compatible endpoint; models.allow_open lists both pairs, so open records may be sent to them and closed records are never sent. For a server of your own that may receive closed records too, list the pairs in models.allow_closed instead. The embedding model and its dimension are the documented default (docs/models.md, Recommended models). This file holds no API key: enter the keys in the panel, where they are stored encrypted.",
+  "items": [
+    { "category": "models", "key": "chat_provider", "value": "openai-compatible" },
+    { "category": "models", "key": "chat_base_url", "value": "https://api.example.com/v1" },
+    { "category": "models", "key": "chat_model", "value": "chat-model" },
+    { "category": "models", "key": "embeddings_provider", "value": "openai-compatible" },
+    { "category": "models", "key": "embeddings_base_url", "value": "https://api.example.com/v1" },
+    { "category": "models", "key": "embeddings_model", "value": "voyage-4" },
+    { "category": "models", "key": "embeddings_params", "value": { "dims": 2048, "native_dims": 2048 } },
+    { "category": "models", "key": "allow_open", "value": [
+      { "base_url": "https://api.example.com/v1", "model": "chat-model" },
+      { "base_url": "https://api.example.com/v1", "model": "voyage-4" }
+    ] }
+  ]
+}

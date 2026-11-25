@@ -1,0 +1,301 @@
+#!/usr/bin/env bash
+# memory-schema — the schema step of the public install path: the `migrate` job of deploy/compose/compose.yaml runs it
+# in the db image, against the server of the `db` service, through the unix socket the two containers share.
+#
+#   memory-schema apply [--dry-run]
+#
+# It applies contracts/schema/manifest.tsv (baked into the image as /schema/manifest.tsv, with the schema files beside
+# it) row by row, top to bottom:
+#   validate → lock → the cluster row (00-roles.sql while role memory_gateway does not exist) → the four databases that
+#   are missing, memory.class of the open and the closed one → every other row (fresh: only while its marker does not
+#   exist, in one transaction; always: on every run, no wrapping transaction) → the logins of the five core roles, with
+#   the passwords of the files in CREDENTIALS_DIRECTORY, on every run → the fingerprint of the applied schema
+#   (maintenance_state key schema_applied = {manifest_sha256, commit, at}, the gateway's health check `schema`
+#   compares it with its own copy of the schema files) → exit 0.
+# --dry-run validates, takes the lock and runs the probes, prints one line per row (apply|skip <db> <file>), writes nothing.
+#
+# Inputs: /schema (fixed; tests mount another folder there), the socket folder /var/run/postgresql (user postgres,
+# `trust` on the socket only), CREDENTIALS_DIRECTORY with pg-memory_gateway, pg-memory_worker, pg-memory_audit_reader,
+# pg-memory_audit_maint and pg-memory_admin_plane (no superuser password: there is none to read here),
+# MEMORY_INSTANCE_ID (required), MEMORY_INSTANCE_NAME (default "Prisma Memory"), MEMORY_SCHEMA_PROFILE (empty: only the
+# rows of every installation, profile "-"), MEMORY_COMMIT (the commit of the release, recorded with the fingerprint;
+# default "unknown").
+#
+# Exit codes: 0 — done, or nothing to do; 1 — failed after a write was possible (an SQL error, the lock not taken in
+# 600 s): run it again, it continues where it stopped, nothing is dropped automatically, stderr names the database and
+# the file; 2 — refused before any write (the call, the manifest, the folder, the environment, a password file, the
+# socket).
+#
+# What reaches psql, and only this (every psql line ends with "# sql: <site>"):
+#
+#   * apply_row() is the one place that runs a file: /schema/ + the file field of a validated row;
+#   * every other statement is a literal of this script — the lock, the probes of a role, a database and a marker table,
+#     CREATE DATABASE of the four core databases, memory.class of two of them, the role logins, the fingerprint row;
+#     names and values reach psql only as -v variables, quoted by psql (:'x', :"x"). No eval, no SQL built from the
+#     manifest, the environment or a file. A password is read by psql itself (\set from `cat <file>`) inside a session that logs no statement: it is
+#     never in an argument, the environment of a process, the output or the server log.
+set -euo pipefail
+# nothing of the caller's PostgreSQL client environment reaches psql (PGOPTIONS, PGSERVICE, PGHOST, PGPASSFILE, …)
+for _v in $(compgen -e); do case "$_v" in PG*) unset "$_v" ;; esac; done
+unset PSQLRC _v
+export LC_ALL=C
+umask 077
+trap '' PIPE   # a write to a lock session that ended is an error to handle, not a silent death
+
+readonly SCHEMA=/schema
+readonly SOCKET=/var/run/postgresql
+readonly ROLES="memory_gateway memory_worker memory_audit_reader memory_audit_maint memory_admin_plane"
+readonly DATABASES="memory_control memory_open memory_closed memory_audit"
+readonly HEADER=$'db\tfile\tphase\tmarker\tvars\tprofile'
+readonly RE_FILE='^[0-9][0-9]-[a-z0-9-]+\.sql$'
+readonly RE_MARKER='^(role|table):[a-z_][a-z0-9_]*$'
+readonly RE_VAR='^[a-z_][a-z0-9_]*(=[A-Za-z0-9_.-]+)?$'
+readonly RE_PROFILE='^[a-z][a-z0-9-]*$'
+readonly RE_INSTANCE='^[a-z0-9][a-z0-9_-]{0,62}$'
+readonly RE_PASSWORD='[A-Za-z0-9_-]{32,}'
+readonly RE_COMMIT='^([0-9a-f]{7,40}(-dirty)?|unknown)$'
+readonly RE_HEX64='^[0-9a-f]{64}$'
+
+refuse() { echo "memory-schema: $* — nothing was changed" >&2; exit 2; }
+fail() { echo "memory-schema: $*" >&2; exit 1; }
+usage() { echo "usage: memory-schema apply [--dry-run]" >&2; exit 2; }
+
+DRY=0
+if [ $# -eq 1 ] && [ "$1" = apply ]; then :
+elif [ $# -eq 2 ] && [ "$1" = apply ] && [ "$2" = --dry-run ]; then DRY=1
+else usage
+fi
+
+# ------------------------------------------------------------------ validate (read only)
+MANIFEST="$SCHEMA/manifest.tsv"
+[ -f "$MANIFEST" ] && [ ! -L "$MANIFEST" ] || refuse "$MANIFEST is missing or not a regular file"
+if grep -q $'\r' "$MANIFEST"; then refuse "$MANIFEST: a carriage return (Windows line ends)"; fi
+
+R_DB=(); R_FILE=(); R_PHASE=(); R_MARKER=(); R_VARS=()
+LISTED="|"; PROFILES="|"; header=0; n=0; others=0
+PROFILE="${MEMORY_SCHEMA_PROFILE:-}"
+while IFS= read -r line || [ -n "$line" ]; do
+  n=$((n + 1)); at="$MANIFEST:$n"
+  case "$line" in '' | '#'*) continue ;; esac
+  if [ "$header" = 0 ]; then
+    [ "$line" = "$HEADER" ] || refuse "$at: the first line that is not a comment must be the header db, file, phase, marker, vars, profile"
+    header=1; continue
+  fi
+  tabs="${line//[!$'\t']/}"
+  [ "${#tabs}" -eq 5 ] || refuse "$at: not six fields separated by single tabs"
+  case "$line" in $'\t'* | *$'\t' | *$'\t\t'*) refuse "$at: an empty field (\"-\" stands for none)" ;; esac
+  IFS=$'\t' read -r db file phase marker vars profile <<<"$line"
+  case "$db" in cluster | memory_control | memory_open | memory_closed | memory_audit) ;; *) refuse "$at: unknown database" ;; esac
+  [[ $file =~ $RE_FILE ]] || refuse "$at: the file is not a schema file name (NN-name.sql)"
+  case "$phase" in
+    fresh) [[ $marker =~ $RE_MARKER ]] || refuse "$at: a fresh row needs a marker role:<name> or table:<name>" ;;
+    always) [ "$marker" = - ] || refuse "$at: an always row has no marker" ;;
+    *) refuse "$at: unknown phase (fresh or always)" ;;
+  esac
+  if [ "$vars" != - ]; then
+    case "$vars" in ,* | *, | *,,*) refuse "$at: an empty variable in the vars field" ;; esac
+    seen="|"
+    IFS=, read -r -a items <<<"$vars"
+    for item in "${items[@]}"; do
+      [[ $item =~ $RE_VAR ]] || refuse "$at: a bad variable (name or name=value)"
+      name="${item%%=*}"
+      case "$seen" in *"|$name|"*) refuse "$at: a variable is named twice" ;; esac
+      seen="$seen$name|"
+      if [ "$item" = "$name" ]; then
+        case "$name" in instance | instance_name) ;; *) refuse "$at: the variable $name has no value and is not one memory-schema supplies (instance, instance_name)" ;; esac
+      fi
+    done
+  fi
+  if [ "$profile" != - ]; then
+    [[ $profile =~ $RE_PROFILE ]] || refuse "$at: a bad profile name"
+    PROFILES="$PROFILES$profile|"
+  fi
+  [ -f "$SCHEMA/$file" ] && [ ! -L "$SCHEMA/$file" ] || refuse "$at: $file is not in $SCHEMA (a listed file is never skipped)"
+  LISTED="$LISTED$file|"
+  if [ "$db" = cluster ]; then [ "$others" = 0 ] || refuse "$at: a cluster row after the rows of the databases"; else others=1; fi
+  if [ "$profile" = - ] || [ "$profile" = "$PROFILE" ]; then
+    R_DB+=("$db"); R_FILE+=("$file"); R_PHASE+=("$phase"); R_MARKER+=("$marker"); R_VARS+=("$vars")
+  fi
+done <"$MANIFEST"
+[ "$header" = 1 ] || refuse "$MANIFEST: no header line"
+[ "${#R_DB[@]}" -gt 0 ] || refuse "$MANIFEST: no rows"
+for path in "$SCHEMA"/*; do
+  name="${path##*/}"
+  case "$name" in *.[sS][qQ][lL]) ;; *) continue ;; esac
+  case "$LISTED" in *"|$name|"*) ;; *) refuse "$SCHEMA/$name has no row in the manifest" ;; esac
+done
+if [ -n "$PROFILE" ]; then
+  [[ $PROFILE =~ $RE_PROFILE ]] || refuse "MEMORY_SCHEMA_PROFILE is not a profile name"
+  case "$PROFILES" in *"|$PROFILE|"*) ;; *) refuse "MEMORY_SCHEMA_PROFILE names a profile no row of the manifest has" ;; esac
+fi
+
+[ -n "${MEMORY_INSTANCE_ID:-}" ] || refuse "MEMORY_INSTANCE_ID is not set"
+[[ $MEMORY_INSTANCE_ID =~ $RE_INSTANCE ]] || refuse "MEMORY_INSTANCE_ID is not an instance id (a-z, 0-9, - and _, at most 63)"
+INSTANCE_NAME="${MEMORY_INSTANCE_NAME:-Prisma Memory}"
+case "$INSTANCE_NAME" in *[[:cntrl:]]*) refuse "MEMORY_INSTANCE_NAME holds a control character" ;; esac
+[ "${#INSTANCE_NAME}" -le 200 ] || refuse "MEMORY_INSTANCE_NAME is longer than 200 characters"
+
+COMMIT="${MEMORY_COMMIT:-unknown}"
+[[ $COMMIT =~ $RE_COMMIT ]] || refuse "MEMORY_COMMIT is not a commit (7 to 40 hex digits, optionally -dirty, or unknown)"
+# the fingerprint: sha256 over the sha256sum lines of manifest.tsv and of every file a row names, sorted, once each —
+# packages/gateway/src/health-schema.ts computes the same from contracts/schema
+FINGERPRINT="$(cd "$SCHEMA" && { sha256sum manifest.tsv && printf '%s' "${LISTED#|}" | tr '|' '\n' | sort -u | while IFS= read -r f; do [ -z "$f" ] || sha256sum "$f"; done; } | sha256sum | cut -d' ' -f1)" || refuse "the fingerprint of $SCHEMA could not be computed"
+[[ $FINGERPRINT =~ $RE_HEX64 ]] || refuse "the fingerprint of $SCHEMA could not be computed"
+
+CRED="${CREDENTIALS_DIRECTORY:-}"
+[ -n "$CRED" ] && [ -d "$CRED" ] || refuse "CREDENTIALS_DIRECTORY is not set or not a directory"
+export CREDENTIALS_DIRECTORY="$CRED"
+for role in $ROLES; do
+  f="$CRED/pg-$role"
+  [ -f "$f" ] && [ -r "$f" ] || refuse "pg-$role is missing in CREDENTIALS_DIRECTORY"
+  # one line of 32 or more characters of the alphabet setup writes (A-Z a-z 0-9 _ -); the value never enters the shell
+  [ "$(grep -c '' "$f")" = 1 ] && grep -Eqx "$RE_PASSWORD" "$f" || refuse "pg-$role is not one line of 32 or more characters A-Z a-z 0-9 _ -"
+done
+for a in $ROLES; do for b in $ROLES; do
+  if [ "$a" \< "$b" ] && cmp -s "$CRED/pg-$a" "$CRED/pg-$b"; then refuse "pg-$a and pg-$b hold the same password"; fi
+done; done
+
+waited=0
+until pg_isready -q -h "$SOCKET" -U postgres -d postgres >/dev/null 2>&1; do
+  waited=$((waited + 1))
+  [ "$waited" -lt 60 ] || refuse "the server does not answer on $SOCKET (60 s)"
+  sleep 1
+done
+
+# ------------------------------------------------------------------ the lock: one session holds it until exit
+LOCK_DIR=""; LOCK_PID=""; held=0
+cleanup() {
+  rc=$?
+  if [ -n "$LOCK_PID" ]; then
+    exec 3>&- 2>/dev/null || true   # end of input: the lock session ends and the server releases the lock
+    if [ "$held" != 1 ]; then kill -INT "$LOCK_PID" 2>/dev/null || true; fi   # still waiting: the client cancels the wait
+    wait "$LOCK_PID" 2>/dev/null || true
+  fi
+  if [ -n "$LOCK_DIR" ]; then rm -rf "$LOCK_DIR"; fi
+  exit "$rc"
+}
+trap cleanup EXIT
+trap 'exit 1' INT TERM HUP
+LOCK_DIR="$(mktemp -d)"
+mkfifo "$LOCK_DIR/in"
+APP="memory-schema-$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')"
+psql -X -q -v ON_ERROR_STOP=1 -U postgres -h "$SOCKET" -d "dbname=postgres application_name=$APP" <"$LOCK_DIR/in" >/dev/null 2>"$LOCK_DIR/err" & # sql: lock
+LOCK_PID=$!
+exec 3>"$LOCK_DIR/in"
+# the key of the schema lock is one fixed number, in database postgres (advisory locks are per database, and
+# memory_control does not exist on an empty cluster)
+cat >&3 <<'SQL' || fail "the lock session ended before it took the lock"
+SET lock_timeout = '600s';
+SELECT pg_advisory_lock(7245019366421);
+SQL
+waited=0
+while :; do
+  kill -0 "$LOCK_PID" 2>/dev/null || fail "the schema lock was not taken: another memory-schema run held it for 600 s, or the server refused the session ($(tail -n 2 "$LOCK_DIR/err" | tr '\n' ' '))"
+  held="$(psql -X -qAt -v ON_ERROR_STOP=1 -U postgres -h "$SOCKET" -d postgres -v app="$APP" <<'SQL' # sql: lock-probe
+SELECT count(*) FROM pg_locks l JOIN pg_stat_activity a ON a.pid = l.pid WHERE l.locktype = 'advisory' AND l.granted AND a.application_name = :'app';
+SQL
+)" || fail "the lock probe failed"
+  [ "$held" = 1 ] && break
+  [ "$waited" != 5 ] || echo "memory-schema: waiting for another memory-schema run (at most 600 s)"
+  waited=$((waited + 1))
+  [ "$waited" -le 620 ] || fail "the schema lock was not taken in 600 s"
+  sleep 1
+done
+
+# ------------------------------------------------------------------ probes
+dbname() { if [ "$1" = cluster ]; then echo postgres; else echo "$1"; fi; }
+database_exists() {
+  psql -X -qAt -v ON_ERROR_STOP=1 -U postgres -h "$SOCKET" -d postgres -v name="$1" <<'SQL' # sql: database-probe
+SELECT count(*) FROM pg_database WHERE datname = :'name';
+SQL
+}
+# marker_present <db> <role:name|table:name> → 1 or 0
+marker_present() {
+  local kind="${2%%:*}" name="${2#*:}"
+  if [ "$kind" = role ]; then
+    psql -X -qAt -v ON_ERROR_STOP=1 -U postgres -h "$SOCKET" -d postgres -v name="$name" <<'SQL' # sql: role-probe
+SELECT count(*) FROM pg_roles WHERE rolname = :'name';
+SQL
+    return
+  fi
+  if [ "$1" != cluster ] && [ "$(database_exists "$1")" != 1 ]; then echo 0; return; fi
+  psql -X -qAt -v ON_ERROR_STOP=1 -U postgres -h "$SOCKET" -d "$(dbname "$1")" -v name="$name" <<'SQL' # sql: table-probe
+SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relname = :'name' AND c.relkind IN ('r', 'p');
+SQL
+}
+
+# ------------------------------------------------------------------ apply
+# apply_row <index>: the one place where psql runs a file
+apply_row() {
+  local i="$1" db="${R_DB[$1]}" file="${R_FILE[$1]}" item
+  local -a args items
+  args=(-X -q -v ON_ERROR_STOP=1 -U postgres -h "$SOCKET" -d "$(dbname "$db")")
+  if [ "${R_PHASE[$i]}" = fresh ]; then args+=(--single-transaction); fi
+  if [ "${R_VARS[$i]}" != - ]; then
+    IFS=, read -r -a items <<<"${R_VARS[$i]}"
+    for item in "${items[@]}"; do
+      case "$item" in
+        instance) args+=(-v "instance=$MEMORY_INSTANCE_ID") ;;
+        instance_name) args+=(-v "instance_name=$INSTANCE_NAME") ;;
+        *) args+=(-v "$item") ;;
+      esac
+    done
+  fi
+  psql "${args[@]}" -f "$SCHEMA/$file" || fail "$db $file failed: nothing of a fresh file stays, an always file is re-runnable — fix the cause and run memory-schema again" # sql: row
+}
+
+# step <index>: one row, as the plan line and (unless --dry-run) its application
+step() {
+  local i="$1" what=apply
+  if [ "${R_PHASE[$i]}" = fresh ] && [ "$(marker_present "${R_DB[$i]}" "${R_MARKER[$i]}")" = 1 ]; then what=skip; fi
+  echo "$what ${R_DB[$i]} ${R_FILE[$i]}"
+  if [ "$DRY" = 0 ] && [ "$what" = apply ]; then apply_row "$i"; fi
+}
+
+count="${#R_DB[@]}"; i=0
+while [ "$i" -lt "$count" ] && [ "${R_DB[$i]}" = cluster ]; do step "$i"; i=$((i + 1)); done
+if [ "$DRY" = 0 ]; then
+  for db in $DATABASES; do
+    if [ "$(database_exists "$db")" != 1 ]; then
+      psql -X -q -v ON_ERROR_STOP=1 -U postgres -h "$SOCKET" -d postgres -v name="$db" <<'SQL' || fail "CREATE DATABASE $db failed" # sql: create-database
+CREATE DATABASE :"name";
+SQL
+    fi
+  done
+  psql -X -q -v ON_ERROR_STOP=1 -U postgres -h "$SOCKET" -d postgres <<'SQL' || fail "memory.class of memory_open and memory_closed was not set" # sql: database-class
+ALTER DATABASE memory_open SET memory.class = 'open';
+ALTER DATABASE memory_closed SET memory.class = 'closed';
+SQL
+fi
+while [ "$i" -lt "$count" ]; do step "$i"; i=$((i + 1)); done
+[ "$DRY" = 0 ] || { echo "memory-schema: dry run, nothing was changed"; exit 0; }
+
+# ------------------------------------------------------------------ role logins, every run, from the files
+psql -X -q -v ON_ERROR_STOP=1 -U postgres -h "$SOCKET" -d postgres <<'SQL' || fail "the role logins failed (postgres database)" # sql: role-logins
+SET log_statement = 'none';
+SET log_min_error_statement = 'panic';
+SET log_min_duration_statement = -1;
+SET log_min_duration_sample = -1;
+SET log_transaction_sample_rate = 0;
+\set pw `cat "$CREDENTIALS_DIRECTORY/pg-memory_gateway"`
+ALTER ROLE memory_gateway LOGIN PASSWORD :'pw';
+\set pw `cat "$CREDENTIALS_DIRECTORY/pg-memory_worker"`
+ALTER ROLE memory_worker LOGIN PASSWORD :'pw';
+\set pw `cat "$CREDENTIALS_DIRECTORY/pg-memory_audit_reader"`
+ALTER ROLE memory_audit_reader LOGIN PASSWORD :'pw';
+\set pw `cat "$CREDENTIALS_DIRECTORY/pg-memory_audit_maint"`
+ALTER ROLE memory_audit_maint LOGIN PASSWORD :'pw';
+\set pw `cat "$CREDENTIALS_DIRECTORY/pg-memory_admin_plane"`
+ALTER ROLE memory_admin_plane LOGIN PASSWORD :'pw';
+\unset pw
+SQL
+
+# ------------------------------------------------------------------ the fingerprint: kept as it is when unchanged
+psql -X -q -v ON_ERROR_STOP=1 -U postgres -h "$SOCKET" -d memory_control -v instance="$MEMORY_INSTANCE_ID" -v fingerprint="$FINGERPRINT" -v commit="$COMMIT" <<'SQL' || fail "the fingerprint row was not written (memory_control maintenance_state)" # sql: fingerprint
+INSERT INTO maintenance_state (instance_id, key, value, updated_at)
+VALUES (:'instance', 'schema_applied', jsonb_build_object('manifest_sha256', :'fingerprint', 'commit', :'commit', 'at', to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')), now())
+ON CONFLICT (instance_id, key) DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at
+WHERE maintenance_state.value ->> 'manifest_sha256' IS DISTINCT FROM EXCLUDED.value ->> 'manifest_sha256'
+   OR maintenance_state.value ->> 'commit' IS DISTINCT FROM EXCLUDED.value ->> 'commit';
+SQL
+echo "memory-schema: schema applied, ${count} rows, five role logins set, fingerprint ${FINGERPRINT:0:12}"

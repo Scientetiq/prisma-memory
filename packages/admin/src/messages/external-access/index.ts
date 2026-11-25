@@ -1,0 +1,14 @@
+import { localized } from "../../i18n/runtime";
+import * as en from "./en";
+import * as ru from "./ru";
+export const EXTERNAL_FACTS = localized({ en: en.EXTERNAL_FACTS, ru: ru.EXTERNAL_FACTS });
+export const DISABLED_CODE_TEXT = localized({ en: en.DISABLED_CODE_TEXT, ru: ru.DISABLED_CODE_TEXT });
+export const NOT_ALLOWED_TEXT = localized({ en: en.NOT_ALLOWED_TEXT, ru: ru.NOT_ALLOWED_TEXT });
+export const FIRST_CONFIRM_TEXT = localized({ en: en.FIRST_CONFIRM_TEXT, ru: ru.FIRST_CONFIRM_TEXT });
+export const ENABLE_CONFIRM = localized({ en: en.ENABLE_CONFIRM, ru: ru.ENABLE_CONFIRM });
+export const DISABLE_CONFIRM = localized({ en: en.DISABLE_CONFIRM, ru: ru.DISABLE_CONFIRM });
+export const REVOKE_ALL_CONFIRM = localized({ en: en.REVOKE_ALL_CONFIRM, ru: ru.REVOKE_ALL_CONFIRM });
+export const CLOSED_REASON_TEXT = localized({ en: en.CLOSED_REASON_TEXT, ru: ru.CLOSED_REASON_TEXT });
+export const PAUSE_CONFIRM = localized({ en: en.PAUSE_CONFIRM, ru: ru.PAUSE_CONFIRM });
+export const LIFT_CONFIRM = localized({ en: en.LIFT_CONFIRM, ru: ru.LIFT_CONFIRM });
+export const EXTERNAL_ACCESS_MESSAGES = localized({ en: en.EXTERNAL_ACCESS_MESSAGES, ru: ru.EXTERNAL_ACCESS_MESSAGES });

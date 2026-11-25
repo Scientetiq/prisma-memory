@@ -1,0 +1,43 @@
+{
+  "kind": "webhook",
+  "sdk": 1,
+  "version": "1.0.0",
+  "title": "Webhook",
+  "description": "Receives signed items from any automation tool.",
+  "verified": "live",
+  "scopes": [
+    "instance",
+    "person"
+  ],
+  "produces": [
+    "document",
+    "meeting",
+    "note",
+    "entity"
+  ],
+  "capabilities": {
+    "webhook": "standard_webhooks",
+    "actions": true
+  },
+  "config": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "language": {
+        "type": "string",
+        "default": "en"
+      }
+    }
+  },
+  "secrets": [],
+  "egress": {
+    "hosts": [
+      "hooks.example.com"
+    ]
+  },
+  "limits": {
+    "minIntervalSec": 60,
+    "maxItemsPerRun": 500,
+    "maxBytesPerItem": 8388608
+  }
+}

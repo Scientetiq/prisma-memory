@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://memory.internal/pipeline/schemas/describe-v2.json",
+  "title": "Output of the described stage (describe-v2)",
+  "description": "A description of a document for lists and for search hits. It creates no record of its own: the fields go to records.summary_line, records.domain_tags and records.attrs.",
+  "$comment": "domain_tags: when the request is built the worker puts in the enum from the setting search.domains (a controlled vocabulary); here only the length is set. Code also drops tags outside the vocabulary. uniqueItems is not used in output schemas (some grammar engines do not implement it): code collapses repeats in arrays before validation (prompts.collapse_repeats).",
+  "type": "object",
+  "required": [
+    "summary_line",
+    "description",
+    "doc_type",
+    "domain_tags",
+    "keywords",
+    "mentions",
+    "language",
+    "document_date"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "summary_line": {
+      "type": "string",
+      "minLength": 5,
+      "maxLength": 160,
+      "description": "What it is and what it is about, one line"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 20,
+      "maxLength": 900,
+      "description": "Up to 120 words"
+    },
+    "doc_type": {
+      "type": "string",
+      "enum": [
+        "contract",
+        "proposal",
+        "presentation",
+        "policy",
+        "report",
+        "minutes",
+        "letter",
+        "spreadsheet",
+        "other"
+      ]
+    },
+    "domain_tags": {
+      "type": "array",
+      "maxItems": 3,
+      "items": {
+        "type": "string",
+        "maxLength": 40
+      }
+    },
+    "keywords": {
+      "type": "array",
+      "maxItems": 10,
+      "items": {
+        "type": "string",
+        "maxLength": 60
+      }
+    },
+    "mentions": {
+      "type": "array",
+      "maxItems": 20,
+      "description": "Mentions of entities as written in the text; code links them to the registry",
+      "items": {
+        "type": "object",
+        "required": [
+          "text",
+          "kind"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "company",
+              "deal",
+              "person",
+              "project",
+              "document",
+              "other"
+            ]
+          }
+        }
+      }
+    },
+    "language": {
+      "type": "string",
+      "pattern": "^[a-z]{2}$",
+      "description": "Language of the source, ISO 639-1"
+    },
+    "document_date": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+      "description": "The date of the document from its content; for reference (in attrs), not occurred_at"
+    },
+    "notes": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 500
+    }
+  }
+}

@@ -1,0 +1,18 @@
+export const adminSessions = {
+  signOut: "Sign out everywhere", pending: "Ending sessions…",
+  question: "Sign out on this and all other devices?",
+  acknowledge: "I understand that all my panel sessions will end, including this one.",
+  confirm: "Confirm that these sessions should end.",
+  failed: "We could not confirm that the sessions ended. Try again.",
+  cancel: "Cancel", ended: "Session ended.", end: "End session", endQuestion: "End this administrator session?",
+  endAcknowledge: "I understand that this session and its tool sessions will end.",
+  invalid: "Reload the list and choose a session.", denied: "Only a memory administrator can end another session.",
+  title: "Administrator sessions", hint: "Active panel sessions. Ending a session also ends its tool sessions. Ending another administrator’s session raises a high alert.",
+  empty: "No active sessions.", loadFailed: "Could not load administrator sessions. Reload the page to try again.",
+  listenerRequired: "The session list requires a separate administrator listener.",
+  truncated: "More sessions are active than this list can show. Narrow the list to one administrator.",
+  owner: "Administrator", started: "Started", seen: "Last active", expires: "Expires", address: "Client address", method: "Sign-in method", action: "Action",
+  current: "This session", tool: "Tool session", breakglass: "Emergency access", unknown: "Unknown",
+  filter: "Filter", all: "All administrators",
+  methods: { sso: "Single sign-on", sso_webauthn: "Single sign-on and security key", sso_breakglass: "Single sign-on, emergency access", local: "Password", local_breakglass: "Password, emergency access", tool: "Tool session" },
+};

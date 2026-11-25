@@ -1,0 +1,1036 @@
+openapi: 3.1.0
+info:
+  title: Edge bridge (memory-relay)
+  version: "1.1.0"
+  x-version-notes:
+    - "Version 1.1.0: the first public version."
+  description: |
+    API of the bridge between the inner services and the edge database. The server is memory-relay, :8445, mTLS; client certificates are
+    by fingerprints in the anchors, the CN defines the list of allowed calls (anchors.schema.json, bridge.client_certs[].calls).
+    The bridge never goes inside itself; every call is a transaction of edge-pg under its own role.
+
+    General rules:
+      - the version header `Memory-Bridge-Api: 1` in every request;
+      - strict validation: an unknown field → 400, a body above the limit → 413;
+      - idempotency: every batch carries batch_id, a repeated batch is not an error; the order within a lane is by the queue’s seq;
+      - the call name is the x-call of each operation from the list bridge_calls (anchors.schema.json#/$defs/bridge_call);
+      - the bridge does not see passwords: sign-in check requests are opaque blobs.
+
+    P0 defines all the routes, RevokeItem and the list of BackchannelEvent kinds. The bodies of the stages are marked x-stage: 1b — publication, revocation, logs, reconciliation; 1e — sign-in check and the back channel (the bodies are described); 4 — C2 requests.
+servers:
+  - url: https://relay.invalid:8445
+security:
+  - mtls: []
+paths:
+  /v1/revoke:
+    post:
+      operationId: revoke
+      summary: "The revoke lane is a separate connection and pool, it does not wait for publications"
+      x-call: revoke
+      x-roles: [edge_writer]
+      x-clients: [memory-exporter, memory-intake, memory-authcheck, memory-reconciler]
+      parameters: [{ $ref: "#/components/parameters/BridgeApi" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RevokeBatch" }
+      responses:
+        "200": { description: Result, content: { application/json: { schema: { $ref: "#/components/schemas/RevokeResult" } } } }
+        default: { $ref: "#/components/responses/Error" }
+  /v1/trees:
+    post:
+      operationId: applyTree
+      summary: Publication of a record with its tree (apply_tree)
+      x-call: trees
+      x-stage: "1b"
+      parameters: [{ $ref: "#/components/parameters/BridgeApi" }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/TreesBatch" } } } }
+      responses: { "200": { description: Result, content: { application/json: { schema: { $ref: "#/components/schemas/TreesResult" } } } }, default: { $ref: "#/components/responses/Error" } }
+  /v1/remove:
+    post:
+      operationId: removeRecords
+      summary: "Removal of records from the copy {ids, generation}"
+      x-call: remove
+      x-stage: "1b"
+      parameters: [{ $ref: "#/components/parameters/BridgeApi" }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/RemoveBatch" } } } }
+      responses: { "200": { description: Result, content: { application/json: { schema: { $ref: "#/components/schemas/RevokeResult" } } } }, default: { $ref: "#/components/responses/Error" } }
+  /v1/links:
+    post:
+      operationId: putLinks
+      summary: Record links
+      x-call: links
+      x-stage: "1b"
+      parameters: [{ $ref: "#/components/parameters/BridgeApi" }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/LinksBatch" } } } }
+      responses: { "200": { description: Result, content: { application/json: { schema: { $ref: "#/components/schemas/LinksResult" } } } }, default: { $ref: "#/components/responses/Error" } }
+  /v1/links/remove:
+    post:
+      operationId: removeLinks
+      summary: Removal of links
+      x-call: links
+      x-stage: "1b"
+      parameters: [{ $ref: "#/components/parameters/BridgeApi" }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/LinksRemoveBatch" } } } }
+      responses: { "200": { description: Result, content: { application/json: { schema: { $ref: "#/components/schemas/LinksResult" } } } }, default: { $ref: "#/components/responses/Error" } }
+  /v1/spaces:
+    post:
+      operationId: putSpaces
+      summary: Spaces reference list
+      x-call: refs
+      x-stage: "1b"
+      parameters: [{ $ref: "#/components/parameters/BridgeApi" }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/SpacesBatch" } } } }
+      responses: { "200": { description: Result, content: { application/json: { schema: { $ref: "#/components/schemas/RefsResult" } } } }, default: { $ref: "#/components/responses/Error" } }
+  /v1/people:
+    post:
+      operationId: putPeople
+      summary: People reference list (login and e-mail only for those who enabled “External access”)
+      x-call: refs
+      x-stage: "1b"
+      parameters: [{ $ref: "#/components/parameters/BridgeApi" }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/PeopleBatch" } } } }
+      responses: { "200": { description: Result, content: { application/json: { schema: { $ref: "#/components/schemas/RefsResult" } } } }, default: { $ref: "#/components/responses/Error" } }
+  /v1/entities:
+    post:
+      operationId: putEntities
+      summary: Entities reference list by allowlist
+      x-call: refs
+      x-stage: "1b"
+      parameters: [{ $ref: "#/components/parameters/BridgeApi" }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/EntitiesBatch" } } } }
+      responses: { "200": { description: Result, content: { application/json: { schema: { $ref: "#/components/schemas/RefsResult" } } } }, default: { $ref: "#/components/responses/Error" } }
+  /v1/projection/begin:
+    post:
+      operationId: projectionBegin
+      summary: Whole rights projection — begin (begin → chunk… → commit in one rename transaction)
+      x-call: projection
+      x-stage: "1b"
+      parameters: [{ $ref: "#/components/parameters/BridgeApi" }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/ProjectionBegin" } } } }
+      responses: { "200": { description: Result, content: { application/json: { schema: { $ref: "#/components/schemas/ProjectionBeginResult" } } } }, default: { $ref: "#/components/responses/Error" } }
+  /v1/projection/chunk:
+    put:
+      operationId: projectionChunk
+      summary: Rights projection — chunk
+      x-call: projection
+      x-stage: "1b"
+      parameters: [{ $ref: "#/components/parameters/BridgeApi" }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/ProjectionChunk" } } } }
+      responses: { "200": { description: Result, content: { application/json: { schema: { $ref: "#/components/schemas/ProjectionChunkResult" } } } }, default: { $ref: "#/components/responses/Error" } }
+  /v1/projection/commit:
+    post:
+      operationId: projectionCommit
+      summary: "Rights projection — commit of {version}"
+      x-call: projection
+      x-stage: "1b"
+      parameters: [{ $ref: "#/components/parameters/BridgeApi" }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/ProjectionCommit" } } } }
+      responses: { "200": { description: Result, content: { application/json: { schema: { $ref: "#/components/schemas/ProjectionResult" } } } }, default: { $ref: "#/components/responses/Error" } }
+  /v1/originals/{id}/{generation}:
+    put:
+      operationId: putOriginal
+      summary: "Original of a record (≤ edge.originals_max_mib, octet-stream)"
+      x-call: originals
+      x-stage: "1b"
+      parameters:
+        - { $ref: "#/components/parameters/BridgeApi" }
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: generation, in: path, required: true, schema: { type: integer, minimum: 1 } }
+        - { name: X-Sha256, in: header, required: true, description: "SHA-256 of the body (hex), the bridge checks it before writing", schema: { type: string, pattern: "^[0-9a-f]{64}$" } }
+        - { name: X-Mime, in: header, required: true, schema: { type: string, maxLength: 127, pattern: "^[a-z0-9.+-]+/[a-z0-9.+-]+$" } }
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema: { type: string, contentMediaType: application/octet-stream }
+      responses: { "200": { description: Result, content: { application/json: { schema: { $ref: "#/components/schemas/OriginalStored" } } } }, default: { $ref: "#/components/responses/Error" } }
+  /v1/originals/{id}:
+    delete:
+      operationId: deleteOriginal
+      summary: Deletion of the original of all generations
+      x-call: originals
+      x-stage: "1b"
+      parameters:
+        - { $ref: "#/components/parameters/BridgeApi" }
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses: { "200": { description: Result, content: { application/json: { schema: { $ref: "#/components/schemas/OriginalRemoved" } } } }, default: { $ref: "#/components/responses/Error" } }
+  /v1/meta/settings:
+    put:
+      operationId: putMetaSettings
+      summary: "“R” settings to the edge {version, settings} — keys without the category prefix (edge-meta.schema.json)"
+      x-call: meta
+      x-stage: "1b"
+      parameters: [{ $ref: "#/components/parameters/BridgeApi" }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/MetaSettings" } } } }
+      responses: { "200": { description: Result, content: { application/json: { schema: { $ref: "#/components/schemas/MetaResult" } } } }, default: { $ref: "#/components/responses/Error" } }
+  /v1/watermark:
+    post:
+      operationId: watermark
+      summary: "Watermark of the revoke lane {age_ms, sent_at} every 10 s"
+      x-call: watermark
+      x-stage: "1b"
+      parameters: [{ $ref: "#/components/parameters/BridgeApi" }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/Watermark" } } } }
+      responses: { "200": { description: Result, content: { application/json: { schema: { $ref: "#/components/schemas/WatermarkResult" } } } }, default: { $ref: "#/components/responses/Error" } }
+  /v1/login-checks/pull:
+    post:
+      operationId: loginChecksPull
+      summary: "Long poll for sign-in check requests {max, wait_sec ≤ 25} → [{id, kind, blob}]"
+      description: |
+        The bridge calls login.login_checks_take(max) with the role edge_backchannel: exactly one poll takes a request (FOR UPDATE SKIP
+        LOCKED, taken_at). Empty — LISTEN login_check for up to wait_sec and one more attempt; wait_sec = 0 — an immediate response. blob is
+        the sealed request as it is (the login-check contract), the bridge does not open or change it.
+      x-call: login_checks
+      x-stage: "1e"
+      x-roles: [edge_backchannel]
+      x-clients: [memory-authcheck]
+      parameters: [{ $ref: "#/components/parameters/BridgeApi" }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/LoginChecksPull" } } } }
+      responses: { "200": { description: Requests, content: { application/json: { schema: { $ref: "#/components/schemas/LoginChecksPullResult" } } } }, default: { $ref: "#/components/responses/Error" } }
+  /v1/login-checks/answer:
+    post:
+      operationId: loginChecksAnswer
+      summary: "Check answer {id, blob} → NOTIFY login_answer"
+      description: |
+        The bridge calls login.login_check_answer(id, blob) with the role edge_backchannel: the answer is stored only if the request was taken by a poll
+        and has no answer yet; then NOTIFY login_answer with the id. No such request, it was not taken or it already has an answer — 404 not_found (an answer
+        is not overwritten). An answer above 2048 bytes — 413.
+      x-call: login_checks
+      x-stage: "1e"
+      x-roles: [edge_backchannel]
+      x-clients: [memory-authcheck]
+      parameters: [{ $ref: "#/components/parameters/BridgeApi" }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/LoginCheckAnswer" } } } }
+      responses:
+        "200": { description: Answer accepted, content: { application/json: { schema: { $ref: "#/components/schemas/LoginCheckAnswerResult" } } } }
+        "404": { $ref: "#/components/responses/Error" }
+        default: { $ref: "#/components/responses/Error" }
+  /v1/backchannel/pull:
+    post:
+      operationId: backchannelPull
+      summary: Connection events from the edge — one consumer with a dispatcher by kind
+      description: |
+        The bridge calls backchannel_take(max) with the role edge_backchannel: events in seq order. There is one consumer: while there is a taken
+        and unconfirmed event younger than 60 s, there are no new events (an empty response); after 60 s the unconfirmed ones are issued again
+        first (the receiver crashed in the middle of a batch) — the seq order holds after a crash too, and the handling of each kind is repeatable.
+        Confirmation is /v1/backchannel/ack, a confirmed event is deleted from the edge at once; take the next batch after it.
+      x-call: backchannel
+      x-stage: "1e"
+      x-roles: [edge_backchannel]
+      x-clients: [memory-intake]
+      parameters: [{ $ref: "#/components/parameters/BridgeApi" }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/BackchannelPull" } } } }
+      responses: { "200": { description: Back channel events, content: { application/json: { schema: { $ref: "#/components/schemas/BackchannelPullResult" } } } }, default: { $ref: "#/components/responses/Error" } }
+  /v1/backchannel/ack:
+    post:
+      operationId: backchannelAck
+      summary: Confirmation of processed events
+      description: The bridge calls backchannel_ack(seqs) with the role edge_backchannel; an unknown or already confirmed seq is not an error.
+      x-call: backchannel
+      x-stage: "1e"
+      x-roles: [edge_backchannel]
+      x-clients: [memory-intake]
+      parameters: [{ $ref: "#/components/parameters/BridgeApi" }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/BackchannelAck" } } } }
+      responses: { "200": { description: Result, content: { application/json: { schema: { $ref: "#/components/schemas/BackchannelAckResult" } } } }, default: { $ref: "#/components/responses/Error" } }
+  /v1/inbox/pull:
+    post:
+      operationId: inboxPull
+      summary: C2 envelopes
+      x-call: inbox
+      x-stage: "4"
+      parameters: [{ $ref: "#/components/parameters/BridgeApi" }]
+      requestBody: { $ref: "#/components/requestBodies/Stage4" }
+      responses: { "200": { $ref: "#/components/responses/Stage4" }, default: { $ref: "#/components/responses/Error" } }
+  /v1/inbox/ack:
+    post:
+      operationId: inboxAck
+      summary: Confirmation of C2 envelopes
+      x-call: inbox
+      x-stage: "4"
+      parameters: [{ $ref: "#/components/parameters/BridgeApi" }]
+      requestBody: { $ref: "#/components/requestBodies/Stage4" }
+      responses: { "200": { $ref: "#/components/responses/Stage4" }, default: { $ref: "#/components/responses/Error" } }
+  /v1/logs/pull:
+    post:
+      operationId: logsPull
+      summary: Edge logs → audit_events.event_type='edge_event'
+      x-call: logs
+      x-stage: "1b"
+      parameters: [{ $ref: "#/components/parameters/BridgeApi" }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/LogsPull" } } } }
+      responses: { "200": { description: Result, content: { application/json: { schema: { $ref: "#/components/schemas/LogsPullResult" } } } }, default: { $ref: "#/components/responses/Error" } }
+  /v1/logs/ack:
+    post:
+      operationId: logsAck
+      summary: Confirmation of the logs taken
+      x-call: logs
+      x-stage: "1b"
+      parameters: [{ $ref: "#/components/parameters/BridgeApi" }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/LogsAck" } } } }
+      responses: { "200": { description: Result, content: { application/json: { schema: { $ref: "#/components/schemas/LogsAckResult" } } } }, default: { $ref: "#/components/responses/Error" } }
+  /v1/inventory:
+    get:
+      operationId: inventory
+      summary: "Hashes of the copy for reconciliation (SELECT only, through a function)"
+      description: |
+        The kind meta is the edge settings edge_meta.settings: one row per key, id is the key, generation is the edge’s settings_version,
+        sha256 is the SHA-256 of the text of the jsonb value (as pgJsonText in @memory/wire). The response does not carry the values themselves:
+        the reconciler compares the hash with what the edge should have received (sign-in pause, switched-off clients).
+      x-call: inventory
+      x-stage: "1b"
+      parameters:
+        - { $ref: "#/components/parameters/BridgeApi" }
+        - { name: kind, in: query, required: true, schema: { type: string, enum: [records, links, projection, people, spaces, entities, originals, tombstones, meta] } }
+        - { name: cursor, in: query, required: false, schema: { type: string, maxLength: 256 } }
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 5000, default: 1000 } }
+      responses: { "200": { description: Result, content: { application/json: { schema: { $ref: "#/components/schemas/InventoryPage" } } } }, default: { $ref: "#/components/responses/Error" } }
+  /v1/canary-scan:
+    post:
+      operationId: canaryScan
+      summary: "Search for canary markers in the copy (the markers are in the bridge configuration, not in the repository)"
+      x-call: canary_scan
+      x-stage: "1b"
+      parameters: [{ $ref: "#/components/parameters/BridgeApi" }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/CanaryScan" } } } }
+      responses: { "200": { description: Result, content: { application/json: { schema: { $ref: "#/components/schemas/CanaryScanResult" } } } }, default: { $ref: "#/components/responses/Error" } }
+  /v1/health:
+    get:
+      operationId: health
+      summary: "Schema version, watermark age, queue depth"
+      x-call: health
+      x-stage: "1b"
+      parameters: [{ $ref: "#/components/parameters/BridgeApi" }]
+      responses: { "200": { description: Result, content: { application/json: { schema: { $ref: "#/components/schemas/Health" } } } }, default: { $ref: "#/components/responses/Error" } }
+components:
+  securitySchemes:
+    mtls:
+      type: mutualTLS
+      description: Client certificate; the fingerprint and the allowed calls are in the anchors (bridge.client_certs).
+  parameters:
+    BridgeApi:
+      name: Memory-Bridge-Api
+      in: header
+      required: true
+      schema: { const: "1" }
+  requestBodies:
+    Stage4:
+      description: The body is defined in a later stage
+      required: true
+      content: { application/json: { schema: { type: object, x-stage: "4" } } }
+  responses:
+    Stage4:
+      description: The response is defined in a later stage
+      content: { application/json: { schema: { type: object, x-stage: "4" } } }
+    Error:
+      description: "Refusal — 400 (unknown field), 403 (call not allowed for the certificate), 404 (no sign-in check request), 409 (schema version), 413 (body above the limit), 502 edge_reply_invalid (the edge database’s reply does not match the contract — not per the reply schema, more rows than asked for, a field above the limit, a protocol limit broken (message, reply, rows, columns, notification stream), a message not per the protocol (reason malformed), or an exception of the bridge’s parser or handler on a message that passed validation (reason handler — the message was per the protocol, more likely a bridge code error than a compromised edge); a sign of a compromised edge — the bridge does not pass such a reply on, and the client raises the alert relay_edge_reply_invalid), 503 (the edge is switched off)"
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: false
+            required: [code]
+            properties:
+              code: { type: string, pattern: "^[a-z_]{1,64}$" }
+              message: { type: string, maxLength: 500 }
+  schemas:
+    RevokeBatch:
+      type: object
+      additionalProperties: false
+      required: [batch_id, items]
+      properties:
+        batch_id: { type: string, format: uuid }
+        items: { type: array, minItems: 1, maxItems: 2000, items: { $ref: "#/components/schemas/RevokeItem" } }
+    RevokeItem:
+      description: |
+        Item of the revoke lane: the single place to enqueue is the function edge_enqueue_revoke(item jsonb); it is called by
+        triggers and functions. generation — revoke no newer than this generation of the record; before — everything issued earlier than that
+        moment (sessions, connections); without before — everything of the person is turned off; external_access_off — the person turned off
+        “External access” (remove the projection too).
+        type — the union of the kinds record, link, space, person, person_projection, entity, original and
+        connection, client, session. keep — only for person_projection: the spaces (space_id) that remain.
+        A new kind is added only by an entry in this list (first the contract, then the functions of 10 and the edge).
+
+        Kinds of identity revocation (on the edge — edge_apply_identity_revocation, e01; applying writes no back channel events, so
+        there is no loop “revoke → connection_revoked → revoke”, and a repeat of an item is empty):
+          connection — the connection id (uuid): state = revoked, tokens are deleted;
+          person without generation — revocation of what was issued to the person (edge_revoke_person, external_access_disable): connections
+            issued earlier than before, the edge’s sign-in sessions (login.sessions) with auth_time earlier than before, and unused sign-in
+            codes; without before — all of it. external_access_off also removes the login, e-mail and “External access” from the profile.
+            The person’s profile and its tombstone are not touched;
+          person with generation — removal of the profile (the edge no longer needs the person) and everything issued to them;
+          client — id = client_id from the anchors: the program is switched off (edge.disabled_clients), its connections are revoked, new ones
+            are not issued until the program is back in the settings (generation — the version of the settings that removed it);
+          session — id = SHA-256 of the sign-in session secret in hex (as login_sessions.secret_hash inside and login.sessions.cookie_hash
+            on the edge, loginSecretHash): the edge’s sign-in session is deleted.
+      type: object
+      additionalProperties: false
+      required: [type, id, reason]
+      properties:
+        type: { enum: [record, link, space, person, person_projection, entity, original, connection, client, session] }
+        id: { type: string, minLength: 1, maxLength: 256 }
+        generation: { type: integer, minimum: 0 }
+        before: { type: string, format: date-time }
+        reason: { type: string, pattern: "^[a-z][a-z0-9_]{0,63}$" }
+        external_access_off: { type: boolean }
+        keep: { type: array, maxItems: 1000, uniqueItems: true, items: { type: string, format: uuid } }
+      if: { properties: { type: { not: { const: person_projection } } } }
+      then: { not: { required: [keep] } }
+      examples:
+        - { type: record, id: "0193a0c0-0000-7000-8000-000000000001", generation: 3, reason: deleted }
+        - { type: person, id: "0193a0c0-0000-7000-8000-000000000002", before: "2026-10-23T10:00:00Z", reason: external_access_off, external_access_off: true }
+        - { type: connection, id: "0193a0c0-0000-7000-8000-000000000005", reason: revoked }
+        - { type: client, id: memory-codex, reason: client_disabled, generation: 1761213600000 }
+        - { type: session, id: "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b", reason: mfa_mode }
+        - { type: space, id: "0193a0c0-0000-7000-8000-000000000003", generation: 1, reason: archived }
+        - { type: person_projection, id: "0193a0c0-0000-7000-8000-000000000002", reason: membership_removed, keep: ["0193a0c0-0000-7000-8000-000000000004"] }
+    BackchannelEvent:
+      description: |
+        A back channel event from the edge. The kinds are the registry enums.json#/edge_backchannel.kind (P0 set the list, the fields of each kind are defined after it); the handlers of the kinds are added separately. A new kind — an entry in the registry and its own closed
+        schema below (kind is the const of the kind). Every kind has seq — a number on the edge (public.edge_backchannel), at — the moment of the event
+        by the edge clock. Writers: edge-auth (edge_backchannel_put — all kinds), edge-mcp (only connection_used, through
+        edge_note_use). The envelope is closed: properties lists the names of all fields of all kinds (the form is in the kind’s schema), an extra field
+        passes neither the envelope nor the kind. The edge checks the body against the same
+        closed kind already on write (e01, edge_backchannel_body_problem; a script checks the fields and lists): a malformed
+        event is not stored in the channel and does not stop delivery.
+      type: object
+      additionalProperties: false
+      required: [seq, at, kind]
+      properties:
+        seq: { type: integer, minimum: 1 }
+        at: { type: string, format: date-time }
+        kind: { enum: [connection_created, connection_revoked, connection_used, refresh_reuse, person_revoke_all] }
+        connection_id: {}
+        grant_id: {}
+        person_id: {}
+        client_id: {}
+        resource: {}
+        challenge_hash: {}
+        mfa_level: {}
+        consent_version: {}
+        created_at: {}
+        expires_at: {}
+        ip_prefix: {}
+        reason: {}
+        items: {}
+        action: {}
+      oneOf:
+        - { $ref: "#/components/schemas/BcConnectionCreated" }
+        - { $ref: "#/components/schemas/BcConnectionRevoked" }
+        - { $ref: "#/components/schemas/BcConnectionUsed" }
+        - { $ref: "#/components/schemas/BcRefreshReuse" }
+        - { $ref: "#/components/schemas/BcPersonRevokeAll" }
+      x-stage-fields: "1e"
+    BcConnectionCreated:
+      description: "A new connection (edge-auth, /oauth/token by code) → intake edge_accept_connection"
+      type: object
+      additionalProperties: false
+      required: [seq, at, kind, connection_id, grant_id, person_id, client_id, resource, challenge_hash, mfa_level, consent_version, created_at, expires_at, ip_prefix]
+      properties:
+        seq: { type: integer, minimum: 1 }
+        at: { type: string, format: date-time }
+        kind: { const: connection_created }
+        connection_id: { type: string, format: uuid }
+        grant_id: { type: string, pattern: "^[A-Za-z0-9_-]{22}$", description: "One-time grant from inside (16 bytes, base64url)" }
+        person_id: { type: string, format: uuid }
+        client_id: { type: string, pattern: "^[a-z0-9][a-z0-9-]{1,63}$" }
+        resource: { type: string, maxLength: 2048, pattern: "^https://" }
+        challenge_hash: { type: string, pattern: "^[A-Za-z0-9_-]{43}$", description: base64url SHA-256 of code_challenge }
+        mfa_level: { enum: [none, totp, recovery, radius_otp, push, passkey] }
+        consent_version: { type: integer, minimum: 1, maximum: 32767 }
+        created_at: { type: string, format: date-time }
+        expires_at: { type: string, format: date-time }
+        ip_prefix: { type: [string, "null"], maxLength: 64, description: Sign-in network (/24 or /48) }
+    BcConnectionRevoked:
+      description: "The connection was revoked on the edge → intake edge_revoke_connection(id, reason) (no echo into the lane — already revoked)"
+      type: object
+      additionalProperties: false
+      required: [seq, at, kind, connection_id, reason]
+      properties:
+        seq: { type: integer, minimum: 1 }
+        at: { type: string, format: date-time }
+        kind: { const: connection_revoked }
+        connection_id: { type: string, format: uuid }
+        reason: { enum: [oauth_revoke, account_page, refresh_reuse, code_reuse, evicted, expired_idle] }
+    BcConnectionUsed:
+      description: "Use of connections in batches, at most once a minute per connection → intake api_keys.last_used_at"
+      type: object
+      additionalProperties: false
+      required: [seq, at, kind, items]
+      properties:
+        seq: { type: integer, minimum: 1 }
+        at: { type: string, format: date-time }
+        kind: { const: connection_used }
+        items:
+          type: array
+          minItems: 1
+          maxItems: 500
+          items:
+            type: object
+            additionalProperties: false
+            required: [connection_id, at]
+            properties:
+              connection_id: { type: string, format: uuid }
+              at: { type: string, format: date-time }
+    BcRefreshReuse:
+      description: "A refresh token replay → intake: banner, e-mail when rejected, alert"
+      type: object
+      additionalProperties: false
+      required: [seq, at, kind, connection_id, action]
+      properties:
+        seq: { type: integer, minimum: 1 }
+        at: { type: string, format: date-time }
+        kind: { const: refresh_reuse }
+        connection_id: { type: string, format: uuid }
+        action: { enum: [revoked, rejected] }
+    BcPersonRevokeAll:
+      description: "“Disconnect all” on the page <sign-in>/account → intake edge_revoke_person(person, 'account_page')"
+      type: object
+      additionalProperties: false
+      required: [seq, at, kind, person_id]
+      properties:
+        seq: { type: integer, minimum: 1 }
+        at: { type: string, format: date-time }
+        kind: { const: person_revoke_all }
+        person_id: { type: string, format: uuid }
+    LoginChecksPull:
+      type: object
+      additionalProperties: false
+      required: [max]
+      properties:
+        max: { type: integer, minimum: 1, maximum: 32 }
+        wait_sec: { type: integer, minimum: 0, maximum: 25, default: 0 }
+    LoginChecksPullResult:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          maxItems: 32
+          items:
+            type: object
+            additionalProperties: false
+            required: [id, kind, blob]
+            properties:
+              id: { type: string, format: uuid }
+              kind: { type: integer, minimum: 1, maximum: 7, description: Number of the request kind (enums.json login.checks.kind) }
+              blob: { $ref: "#/components/schemas/Blob4096" }
+    LoginCheckAnswer:
+      type: object
+      additionalProperties: false
+      required: [id, blob]
+      properties:
+        id: { type: string, format: uuid }
+        blob: { $ref: "#/components/schemas/Blob2048" }
+    LoginCheckAnswerResult:
+      type: object
+      additionalProperties: false
+      required: [ok]
+      properties:
+        ok: { const: true }
+    Blob4096:
+      description: "Sealed request, base64 (RFC 4648 §4, with “=”), at most 4096 bytes"
+      type: string
+      minLength: 4
+      maxLength: 5464
+      pattern: "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$"
+    Blob2048:
+      description: "Sealed answer, base64 (RFC 4648 §4, with “=”), at most 2048 bytes"
+      type: string
+      minLength: 4
+      maxLength: 2732
+      pattern: "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$"
+    BackchannelPull:
+      type: object
+      additionalProperties: false
+      required: [max]
+      properties:
+        max: { type: integer, minimum: 1, maximum: 500 }
+    BackchannelPullResult:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: { type: array, maxItems: 500, items: { $ref: "#/components/schemas/BackchannelEvent" } }
+    BackchannelAck:
+      type: object
+      additionalProperties: false
+      required: [seqs]
+      properties:
+        seqs: { type: array, minItems: 1, maxItems: 500, uniqueItems: true, items: { type: integer, minimum: 1 } }
+    BackchannelAckResult:
+      type: object
+      additionalProperties: false
+      required: [acked]
+      properties:
+        acked: { type: integer, minimum: 0 }
+    RevokeResult:
+      description: "Result of a revocation (and of a removal without narrowing, /v1/remove)"
+      type: object
+      additionalProperties: false
+      required: [applied, ids_tombstoned, at]
+      properties:
+        applied: { type: integer, minimum: 0 }
+        ids_tombstoned: { type: array, maxItems: 2000, items: { type: string, maxLength: 256 } }
+        at: { type: string, format: date-time, description: Time of application by the edge clock }
+    RemoveBatch:
+      description: "Cleanup without narrowing (a record was split, an entity left the list) — in the publication lane; ≤ 1 MiB"
+      type: object
+      additionalProperties: false
+      required: [batch_id, items]
+      properties:
+        batch_id: { type: string, format: uuid }
+        items: { type: array, minItems: 1, maxItems: 2000, items: { $ref: "#/components/schemas/RemoveItem" } }
+    RemoveItem:
+      type: object
+      additionalProperties: false
+      required: [type, id, generation]
+      properties:
+        type: { enum: [record, link, space, person, entity, original] }
+        id: { type: string, format: uuid }
+        generation: { type: integer, minimum: 1 }
+        reason: { type: string, pattern: "^[a-z][a-z0-9_]{0,63}$" }
+    TreesBatch:
+      description: "Publication of records with a tree (≤ 100 trees, ≤ 16 MiB)"
+      type: object
+      additionalProperties: false
+      required: [batch_id, trees]
+      properties:
+        batch_id: { type: string, format: uuid }
+        trees: { type: array, minItems: 1, maxItems: 100, items: { $ref: "#/components/schemas/Tree" } }
+    Tree:
+      description: The whole record — replaces all rows of the record on the edge if generation is higher than the tombstone and the current one
+      type: object
+      additionalProperties: false
+      required: [record, content, chunks, placements, people, entities, generation]
+      properties:
+        record: { $ref: "#/components/schemas/EdgeRecord" }
+        content: { oneOf: [{ $ref: "#/components/schemas/EdgeContent" }, { type: "null" }] }
+        chunks: { type: array, maxItems: 20000, items: { $ref: "#/components/schemas/EdgeChunk" } }
+        placements: { type: array, maxItems: 1000, uniqueItems: true, items: { type: string, format: uuid } }
+        people: { type: array, maxItems: 1000, uniqueItems: true, items: { type: string, format: uuid } }
+        entities: { type: array, maxItems: 1000, uniqueItems: true, items: { type: string, format: uuid } }
+        generation: { type: integer, minimum: 1 }
+    EdgeRecord:
+      description: Fields of edge_records from the allowlist (without generation — it belongs to the tree)
+      type: object
+      additionalProperties: false
+      required: [id, type, event_kind, space_id, title, summary_line, occurred_at, ingested_at, updated_at, owner_id, origin, method, confirmed,
+                 parent_id, locator, version, is_current, domain_tags, path, org_review_state, attrs, agent_file]
+      properties:
+        id: { type: string, format: uuid }
+        type: { enum: [document, transcript, event, summary, profile, note] }
+        event_kind: { enum: [decision, action, question_risk, fact, null] }
+        space_id: { type: string, format: uuid }
+        title: { type: [string, "null"], maxLength: 2000 }
+        summary_line: { type: [string, "null"], maxLength: 4000 }
+        occurred_at: { type: string, format: date-time }
+        ingested_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        owner_id: { type: string, format: uuid }
+        origin: { enum: [human, agent] }
+        method: { enum: [source_document, extracted_by_model, stated_by_human, inferred_by_agent] }
+        confirmed: { type: boolean }
+        parent_id: { type: [string, "null"], format: uuid }
+        locator: { type: [object, "null"], maxProperties: 16 }
+        version: { type: integer, minimum: 1 }
+        is_current: { type: boolean }
+        domain_tags: { type: array, maxItems: 64, items: { type: string, maxLength: 200 } }
+        path: { type: string, maxLength: 512, pattern: "^/spaces/[a-z0-9][a-z0-9-]{1,62}/[a-z]+/[0-9]{4}/[0-9]{2}/[0-9a-f-]{36}$" }
+        org_review_state: { type: [string, "null"], pattern: "^[a-z_]{1,32}$" }
+        attrs: { $ref: "#/components/schemas/EdgeRecordAttrs" }
+        agent_file: { type: boolean, description: The original is available to agents (conversion.agent_file and AGENT_FILE) }
+    EdgeRecordAttrs:
+      description: Only attrs keys from export-whitelist.json (edge_records.attrs); values are as inside
+      type: object
+      additionalProperties: false
+      properties:
+        rationale: {}
+        alternatives: {}
+        approved_by: {}
+        outcome: {}
+        actors: {}
+        participants: {}
+        due: {}
+        pages: {}
+        quote: {}
+    EdgeContent:
+      type: object
+      additionalProperties: false
+      required: [markdown, pages, duration_sec, language]
+      properties:
+        markdown: { type: string }
+        pages: { type: [integer, "null"], minimum: 0 }
+        duration_sec: { type: [integer, "null"], minimum: 0 }
+        language: { type: [string, "null"], maxLength: 16 }
+    EdgeChunk:
+      description: "Chunk; space_id, type and occurred_at are as in the internal chunks (the same filters and ranking)"
+      type: object
+      additionalProperties: false
+      required: [id, ordinal, text, token_count, section_path, page_from, page_to, time_from_sec, time_to_sec, space_id, type, occurred_at]
+      properties:
+        id: { type: string, format: uuid }
+        ordinal: { type: integer, minimum: 0 }
+        text: { type: string }
+        token_count: { type: integer, minimum: 0 }
+        section_path: { type: [string, "null"], maxLength: 1000 }
+        page_from: { type: [integer, "null"] }
+        page_to: { type: [integer, "null"] }
+        time_from_sec: { type: [integer, "null"] }
+        time_to_sec: { type: [integer, "null"] }
+        space_id: { type: string, format: uuid }
+        type: { enum: [document, transcript, event, summary, profile, note] }
+        occurred_at: { type: string, format: date-time }
+    TreesResult:
+      type: object
+      additionalProperties: false
+      required: [applied, skipped_stale]
+      properties:
+        applied: { type: array, maxItems: 100, items: { type: string, format: uuid } }
+        skipped_stale: { type: array, maxItems: 100, items: { type: string, format: uuid } }
+    LinksBatch:
+      description: Record links (≤ 4 MiB); status — only active and confirmed
+      type: object
+      additionalProperties: false
+      required: [batch_id, links]
+      properties:
+        batch_id: { type: string, format: uuid }
+        links: { type: array, minItems: 1, maxItems: 2000, items: { $ref: "#/components/schemas/EdgeLink" } }
+    EdgeLink:
+      type: object
+      additionalProperties: false
+      required: [id, src_id, dst_id, relation, status, src_quote, dst_quote, rationale, generation]
+      properties:
+        id: { type: string, format: uuid }
+        src_id: { type: string, format: uuid }
+        dst_id: { type: string, format: uuid }
+        relation: { enum: [same, refines, replaces, contradicts, resolves, derived_from, echo_of, corrects] }
+        status: { enum: [active, confirmed] }
+        src_quote: { type: [string, "null"], maxLength: 600 }
+        dst_quote: { type: [string, "null"], maxLength: 600 }
+        rationale: { type: [string, "null"], maxLength: 500 }
+        generation: { type: integer, minimum: 1 }
+    LinksRemoveBatch:
+      description: Removal of links without narrowing
+      type: object
+      additionalProperties: false
+      required: [batch_id, items]
+      properties:
+        batch_id: { type: string, format: uuid }
+        items:
+          type: array
+          minItems: 1
+          maxItems: 2000
+          items:
+            type: object
+            additionalProperties: false
+            required: [id, generation]
+            properties:
+              id: { type: string, format: uuid }
+              generation: { type: integer, minimum: 1 }
+    LinksResult:
+      type: object
+      additionalProperties: false
+      required: [applied, skipped_stale]
+      properties:
+        applied: { type: array, maxItems: 2000, items: { type: string, format: uuid } }
+        skipped_stale: { type: array, maxItems: 2000, items: { type: string, format: uuid } }
+    PeopleBatch:
+      description: "People reference list; login_lc and email only for those who enabled “External access”, otherwise null (≤ 4 MiB)"
+      type: object
+      additionalProperties: false
+      required: [batch_id, rows]
+      properties:
+        batch_id: { type: string, format: uuid }
+        rows: { type: array, minItems: 1, maxItems: 5000, items: { $ref: "#/components/schemas/EdgePerson" } }
+    EdgePerson:
+      type: object
+      additionalProperties: false
+      required: [person_id, display_name, active, external_access, login_lc, email, generation]
+      properties:
+        person_id: { type: string, format: uuid }
+        display_name: { type: string, maxLength: 300 }
+        active: { type: boolean }
+        external_access: { type: boolean }
+        login_lc: { type: [string, "null"], maxLength: 254 }
+        email: { type: [string, "null"], maxLength: 254 }
+        generation: { type: integer, minimum: 1 }
+        ad_ok_until:
+          description: |
+            Until when the directory data about the person is valid (ad_checked_at + edge.ad_state_max_age_hours);
+            after that the edge refuses the person’s connections with the reason ad_stale and issues no new ones. Inside — the view
+            v_people_ad_until: for those who enabled “External access” a row always exists; if there was no check or the directory said “not allowed” —
+            a moment in the past. An exporter with expiry support sends the field for everyone with external_access = true, always:
+            null for such a person is treated by the edge as “no data” — expired (ad_stale). No field in the row at all — an exporter
+            without expiry support: the edge does not check the expiry; this is transitional, until that change is merged.
+          type: [string, "null"]
+          format: date-time
+    SpacesBatch:
+      description: Spaces reference list — only those with published records (≤ 4 MiB)
+      type: object
+      additionalProperties: false
+      required: [batch_id, rows]
+      properties:
+        batch_id: { type: string, format: uuid }
+        rows: { type: array, minItems: 1, maxItems: 5000, items: { $ref: "#/components/schemas/EdgeSpace" } }
+    EdgeSpace:
+      type: object
+      additionalProperties: false
+      required: [space_id, slug, title, kind, description, readme, generation]
+      properties:
+        space_id: { type: string, format: uuid }
+        slug: { type: string, pattern: "^[a-z0-9][a-z0-9-]{1,62}$" }
+        title: { type: string, maxLength: 300 }
+        kind: { enum: [personal, team, org, project] }
+        description: { type: [string, "null"], maxLength: 4000 }
+        readme: { type: [string, "null"], maxLength: 65536 }
+        generation: { type: integer, minimum: 1 }
+    EntitiesBatch:
+      description: Entities reference list — only memory projects (≤ 4 MiB)
+      type: object
+      additionalProperties: false
+      required: [batch_id, rows]
+      properties:
+        batch_id: { type: string, format: uuid }
+        rows: { type: array, minItems: 1, maxItems: 5000, items: { $ref: "#/components/schemas/EdgeEntity" } }
+    EdgeEntity:
+      type: object
+      additionalProperties: false
+      required: [entity_id, kind, name, slug, generation]
+      properties:
+        entity_id: { type: string, format: uuid }
+        kind: { const: project }
+        name: { type: string, maxLength: 300 }
+        slug: { type: string, maxLength: 200 }
+        generation: { type: integer, minimum: 1 }
+    RefsResult:
+      type: object
+      additionalProperties: false
+      required: [applied, skipped_stale]
+      properties:
+        applied: { type: integer, minimum: 0 }
+        skipped_stale: { type: array, maxItems: 5000, items: { type: string, format: uuid } }
+    ProjectionBegin:
+      description: |
+        Start of a full replacement of the projection. The exporter calls begin BEFORE reading the snapshot: the time of begin by the edge clock is the boundary after
+        which a narrowing (a tombstone of person_projection, person or space) may have missed the snapshot; commit adds to such people and
+        spaces only what they already have.
+      type: object
+      additionalProperties: false
+      required: [batch_id]
+      properties:
+        batch_id: { type: string, format: uuid }
+    ProjectionBeginResult:
+      type: object
+      additionalProperties: false
+      required: [txid]
+      properties:
+        txid: { type: string, format: uuid, description: Identifier of the projection replacement; carried by chunk and commit }
+    ProjectionChunk:
+      description: "Part of the projection (≤ 4 MiB); seq is the part number from 0, a repeat of the same part changes nothing"
+      type: object
+      additionalProperties: false
+      required: [txid, seq, rows]
+      properties:
+        txid: { type: string, format: uuid }
+        seq: { type: integer, minimum: 0, maximum: 100000 }
+        rows: { type: array, maxItems: 20000, items: { $ref: "#/components/schemas/ProjectionRow" } }
+    ProjectionRow:
+      type: object
+      additionalProperties: false
+      required: [person_id, space_id, can_read, can_write_open, until]
+      properties:
+        person_id: { type: string, format: uuid }
+        space_id: { type: string, format: uuid }
+        can_read: { type: boolean }
+        can_write_open: { const: false }
+        until: { type: [string, "null"], format: date-time, description: "Membership expiry (space_members.expires_at); null — no expiry. From that moment by the edge clock the row no longer applies" }
+    ProjectionChunkResult:
+      type: object
+      additionalProperties: false
+      required: [rows]
+      properties:
+        rows: { type: integer, minimum: 0 }
+    ProjectionCommit:
+      description: Commit of the replacement — one rename in a transaction; rows_total and sha256 are checked against the accepted parts
+      type: object
+      additionalProperties: false
+      required: [txid, version, rows_total, sha256]
+      properties:
+        txid: { type: string, format: uuid }
+        version: { type: integer, minimum: 1, description: "Order of replacements: strictly greater than the previously accepted one (the exporter takes the epoch microseconds of the snapshot moment by its own clock). Not compared with tombstones" }
+        rows_total: { type: integer, minimum: 0 }
+        sha256: { type: string, pattern: "^[0-9a-f]{64}$", description: "SHA-256 (hex) of the text: the lines “person_id:space_id:R:W:until” (R, W — 1 or 0; until — UTC with milliseconds YYYY-MM-DDTHH:MM:SS.mmmZ or empty), sorted by UTF-8 bytes in ascending order, joined by a line feed \\n with none at the end; uuid in lower case. The counterpart is projectionSha256 (@memory/wire/common/export-types.ts) and edge_projection_line (e01)" }
+    ProjectionResult:
+      type: object
+      additionalProperties: false
+      required: [version]
+      properties:
+        version: { type: integer, minimum: 1 }
+    OriginalStored:
+      type: object
+      additionalProperties: false
+      required: [stored, sha256]
+      properties:
+        stored: { type: boolean, description: "false — the generation is not higher than the tombstone, or the record is not on the edge" }
+        sha256: { type: string, pattern: "^[0-9a-f]{64}$" }
+    OriginalRemoved:
+      type: object
+      additionalProperties: false
+      required: [removed]
+      properties:
+        removed: { type: integer, minimum: 0 }
+    MetaSettings:
+      description: "“R” settings to the edge (≤ 64 KiB); keys without the category prefix, values per edge-meta.schema.json"
+      type: object
+      additionalProperties: false
+      required: [version, settings]
+      properties:
+        version: { type: integer, minimum: 1 }
+        settings: { type: object, maxProperties: 128, propertyNames: { pattern: "^[a-z][a-z0-9_]{0,63}$" }, description: Validated against contracts/edge/edge-meta.schema.json }
+    MetaResult:
+      type: object
+      additionalProperties: false
+      required: [version]
+      properties:
+        version: { type: integer, minimum: 1 }
+    Watermark:
+      description: |
+        Watermark of the revoke lane every 10 s; enabled = false — the edge switches off at once (edge_off). sent_at is
+        the send time by the exporter’s clock, strictly increasing: the edge applies a watermark only if it is newer than the accepted one, so
+        a delayed “enabled” does not override a switch-off.
+      type: object
+      additionalProperties: false
+      required: [age_ms, sent_at, enabled]
+      properties:
+        age_ms: { type: integer, minimum: 0, description: Age of the oldest unprocessed revocation row; 0 — the lane is empty }
+        sent_at: { type: string, format: date-time }
+        enabled: { type: boolean }
+        reason: { enum: [export_disabled, killed, restore] }
+    WatermarkResult:
+      type: object
+      additionalProperties: false
+      required: [received_at, applied]
+      properties:
+        received_at: { type: string, format: date-time, description: By the edge clock }
+        applied: { type: boolean, description: "false — the watermark is not newer than the one already accepted (sent_at), nothing was changed: watermarks are applied in send order" }
+    LogsPull:
+      type: object
+      additionalProperties: false
+      required: [max]
+      properties:
+        max: { type: integer, minimum: 1, maximum: 1000 }
+    LogsPullResult:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: { type: array, maxItems: 1000, items: { $ref: "#/components/schemas/EdgeLogItem" } }
+    EdgeLogItem:
+      description: "Edge event without content (audit-codes.json, section 1b)"
+      type: object
+      additionalProperties: false
+      required: [id, at, code, connection_id, person_id, ip_prefix, detail]
+      properties:
+        id: { type: integer, minimum: 1 }
+        at: { type: string, format: date-time }
+        code: { type: string, pattern: "^[a-z][a-z0-9_]{0,63}$" }
+        connection_id: { type: [string, "null"], format: uuid }
+        person_id: { type: [string, "null"], format: uuid }
+        ip_prefix: { type: [string, "null"], maxLength: 64 }
+        detail: { type: object, maxProperties: 16 }
+    LogsAck:
+      type: object
+      additionalProperties: false
+      required: [ids]
+      properties:
+        ids: { type: array, minItems: 1, maxItems: 1000, items: { type: integer, minimum: 1 } }
+    LogsAckResult:
+      type: object
+      additionalProperties: false
+      required: [acked]
+      properties:
+        acked: { type: integer, minimum: 0 }
+    InventoryPage:
+      description: Hashes of the copy for reconciliation (row hash of the publication gate)
+      type: object
+      additionalProperties: false
+      required: [rows, next]
+      properties:
+        rows:
+          type: array
+          maxItems: 5000
+          items:
+            type: object
+            additionalProperties: false
+            required: [id, generation, sha256]
+            properties:
+              id: { type: string, maxLength: 256 }
+              generation: { type: [integer, "null"] }
+              sha256: { type: string, pattern: "^[0-9a-f]{64}$" }
+        next: { type: [string, "null"], maxLength: 256 }
+    CanaryScan:
+      description: Hashes of the canary markers from the reconciler; the bridge takes the markers from its own configuration (≤ 16 KiB)
+      type: object
+      additionalProperties: false
+      required: [markers_sha256]
+      properties:
+        markers_sha256: { type: array, minItems: 1, maxItems: 256, uniqueItems: true, items: { type: string, pattern: "^[0-9a-f]{64}$" } }
+    CanaryScanResult:
+      type: object
+      additionalProperties: false
+      required: [hits]
+      properties:
+        hits:
+          type: array
+          maxItems: 1000
+          items:
+            type: object
+            additionalProperties: false
+            required: [id, kind]
+            properties:
+              id: { type: string, format: uuid }
+              kind: { enum: [record, chunk, content] }
+    Health:
+      type: object
+      additionalProperties: false
+      required: [api, schema_version, projection_version, watermark_age_ms, enabled, queue_depth]
+      properties:
+        api: { const: 1 }
+        schema_version: { type: integer, minimum: 0 }
+        projection_version: { type: [integer, "null"] }
+        watermark_age_ms: { type: [integer, "null"], minimum: 0 }
+        enabled: { type: boolean }
+        queue_depth:
+          type: object
+          additionalProperties: false
+          required: [revoke_pool, publish_pool]
+          properties:
+            revoke_pool: { type: integer, minimum: 0 }
+            publish_pool: { type: integer, minimum: 0 }
+        anchors:
+          description: >-
+            The number of the current anchors and the fingerprint of the root of trust (rootFingerprint) they were accepted by — for the bridge itself (relay) and for the edge (edge, from edge_meta; null — the edge has not reported yet or the edge database has no anchors columns). The edge also has seen_at — the time of its last report (the edge-mcp process repeats it every 30 s). The reconciler stores them as rows of service_heartbeats “memory-relay” and “edge” (for “edge” the row time is seen_at). A bridge without this data does not return the field.
+          type: object
+          additionalProperties: false
+          required: [relay, edge]
+          properties:
+            relay: { $ref: "#/components/schemas/AnchorsSeen" }
+            edge:
+              oneOf:
+                - { $ref: "#/components/schemas/AnchorsSeen" }
+                - { type: "null" }
+    AnchorsSeen:
+      type: object
+      additionalProperties: false
+      required: [serial, root_sha256]
+      properties:
+        serial: { type: integer, minimum: 1 }
+        root_sha256: { type: string, pattern: "^[0-9a-f]{64}$" }
+        seen_at:
+          description: time of the last report from the edge process (edge_meta.anchors_seen_at); the bridge has no such field
+          type: string
+          format: date-time

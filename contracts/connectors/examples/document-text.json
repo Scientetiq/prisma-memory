@@ -1,0 +1,19 @@
+{
+  "type": "document",
+  "external_id": "wiki/onboarding",
+  "external_version": "rev-14",
+  "filename": "onboarding.md",
+  "mime": "text/markdown",
+  "title": "Onboarding checklist",
+  "url": "https://wiki.example.com/pages/onboarding",
+  "occurred_at": "2026-10-01T09:30:00Z",
+  "path": "Team/HR/onboarding.md",
+  "entities": [
+    {
+      "system": "crm",
+      "kind": "company",
+      "id": "42"
+    }
+  ],
+  "text": "# Onboarding\n\n1. Laptop and accounts.\n2. Meet the team.\n"
+}

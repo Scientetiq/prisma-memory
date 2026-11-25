@@ -1,0 +1,36 @@
+{
+  "containers": [
+    {
+      "kind": "page",
+      "number": 1,
+      "method": "pdf_text",
+      "blocks": [
+        {
+          "type": "heading",
+          "level": 1,
+          "text": "Supply agreement"
+        },
+        {
+          "type": "paragraph",
+          "text": "The supplier delivers the goods to the central warehouse."
+        }
+      ]
+    },
+    {
+      "kind": "page",
+      "number": 2,
+      "method": "pdf_text",
+      "blocks": [
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "Delivery terms"
+        },
+        {
+          "type": "paragraph",
+          "text": "Delivery takes place within ten working days after the order."
+        }
+      ]
+    }
+  ]
+}

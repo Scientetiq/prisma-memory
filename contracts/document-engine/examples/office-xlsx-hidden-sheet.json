@@ -1,0 +1,90 @@
+{
+  "title": "Office file: text to agents, file only to people",
+  "description": "A spreadsheet with a hidden second sheet. The hidden sheet stays in the text under its marked heading. Nothing limits the text, but any office file is withheld from agents with the single reason `office`.",
+  "content_locale": "en",
+  "rule_status": "current",
+  "conversion": {
+    "status": "ready",
+    "markdown": "## Budget\n\n| Item | Cost |\n|---|---|\n| Licences | 1200 |\n\n## Rates (hidden)\n\n| Role | Rate |\n|---|---|\n| Analyst | 50 |\n",
+    "pages": null,
+    "units": [
+      {
+        "kind": "sheet",
+        "number": 1,
+        "method": "ooxml",
+        "chars": 20,
+        "images": 0,
+        "hidden": false,
+        "warnings": []
+      },
+      {
+        "kind": "sheet",
+        "number": 2,
+        "method": "ooxml",
+        "chars": 17,
+        "images": 0,
+        "hidden": true,
+        "warnings": []
+      }
+    ],
+    "warnings": [],
+    "engine": {
+      "id": "builtin",
+      "release": "0.1.0"
+    }
+  },
+  "input": {
+    "status": "ready",
+    "error": null,
+    "text": "## Budget\n\n| Item | Cost |\n|---|---|\n| Licences | 1200 |\n\n## Rates (hidden)\n\n| Role | Rate |\n|---|---|\n| Analyst | 50 |\n",
+    "units": [
+      {
+        "kind": "sheet",
+        "number": 1,
+        "method": "ooxml",
+        "chars": 20,
+        "images": 0,
+        "hidden": false,
+        "warnings": []
+      },
+      {
+        "kind": "sheet",
+        "number": 2,
+        "method": "ooxml",
+        "chars": 17,
+        "images": 0,
+        "hidden": true,
+        "warnings": []
+      }
+    ],
+    "warnings": [],
+    "images_found": 0,
+    "engine_format": "xlsx",
+    "detected_format": "xlsx",
+    "source_flags": [],
+    "engine": {
+      "id": "builtin",
+      "release": "0.1.0"
+    }
+  },
+  "expected": {
+    "status": "ready",
+    "text": "## Budget\n\n| Item | Cost |\n|---|---|\n| Licences | 1200 |\n\n## Rates (hidden)\n\n| Role | Rate |\n|---|---|\n| Analyst | 50 |\n",
+    "pages": null,
+    "extraction": "ready",
+    "agent_file": false,
+    "agent_file_why": [
+      "office"
+    ],
+    "warning_codes": [],
+    "ocr_units": 0,
+    "ocr_rerun": false,
+    "error_code": null,
+    "error_class": null,
+    "engine_format": "xlsx",
+    "engine": {
+      "id": "builtin",
+      "release": "0.1.0"
+    }
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "containers": [
+    {
+      "kind": "sheet",
+      "number": 1,
+      "hidden": false,
+      "title": "Staff costs",
+      "method": "ooxml",
+      "blocks": [
+        {
+          "type": "table",
+          "header_row": true,
+          "hidden_columns": [
+            2
+          ],
+          "rows": [
+            {
+              "cells": [
+                "Team",
+                "Cost",
+                "Internal code"
+              ]
+            },
+            {
+              "cells": [
+                "Support",
+                "300",
+                "A-1"
+              ]
+            },
+            {
+              "cells": [
+                "Old team",
+                "0",
+                "Z-9"
+              ],
+              "hidden": true
+            }
+          ]
+        },
+        {
+          "type": "figure",
+          "caption": "Cost by team"
+        }
+      ]
+    }
+  ]
+}

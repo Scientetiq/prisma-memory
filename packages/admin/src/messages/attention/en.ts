@@ -1,0 +1,26 @@
+import { formatCount } from "../../i18n/format";
+// Messages in the language of the current request. One export per dictionary.
+export const ATTENTION_TEXT = {
+  report: "report",
+  noLogin: "No sign-in method is configured: nobody can access the workspace",
+  ldap: "Sign-in and LDAP",
+  sso: "Single sign-on",
+  missing: (missing: readonly string[]): string => `Required settings are missing (${missing.length}): ${missing.join(", ")}`,
+  groupBinds: "group bindings in the report",
+  groupSyncFailed: "Directory group sync failed: the directory did not respond, so group memberships were not changed",
+  operator: (u: { login: string; person: string | null }): string => `${u.person ? `The person behind ${u.login} is inactive` : `No person is assigned to ${u.login}`}: extended access to all memory (level 5) cannot be granted`,
+  assign: "assign",
+  orgNoOwner: "Company knowledge has no owner: nobody can delete or promote its records",
+  assignSpaces: "assign in “Spaces”",
+  leftoversFailed: "Test cleanup stopped after an error — deletion and archiving are paused",
+  deletion: (count: number): string => `Meetings that participants have asked to delete: ${formatCount(count)}`,
+  deletionRequests: "deletion requests",
+  openNew: (openNew: number): string => `New open spaces in the past day: ${formatCount(openNew)} — participants’ cloud agents can read their records`,
+  orphans: (orphans: number): string => `Spaces without an active owner: ${formatCount(orphans)} — the owner has left or been disabled; assign a new one`,
+  noHead: (noHead: number): string => `Departments without an active manager or assigned owner: ${formatCount(noHead)} — only the memory administrator can manage their spaces for now. Specify managers in the staff list or assign space owners`,
+  staleTest: (staleTest: number): string => `Test accounts active for more than a day: ${formatCount(staleTest)} — a test did not clean up after itself. Disable each account from the person’s page`,
+  testPeople: "People: test accounts",
+  keptTest: (keptTest: number): string => `Test spaces still active: ${formatCount(keptTest)} — colleagues or a service use them; decide what to do with them`,
+  markedStaff: (markedStaff: number): string => `People marked test with a non-test address: ${formatCount(markedStaff)} — check whether they are real colleagues`,
+  failedCheck: (title: string, detail: string): string => `Check “${title}” failed${detail ? `: ${detail}` : ""}`,
+};

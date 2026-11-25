@@ -1,0 +1,32 @@
+import { formatCount } from "../../i18n/format";
+import { pluralEn } from "../../i18n/core";
+// Messages in the language of the current request. One export per dictionary.
+export const VISIBILITY_TEXT = {
+ people: (n: number): string => `${formatCount(n)} ${pluralEn(n, "person", "people")}`,
+ moreNames: (list: string, more: number): string => list + (more ? ` and ${formatCount(more)} more` : ""),
+ company: "all colleagues in the company",
+ you: "you",
+ personalOther: (placement: boolean): string => placement ? "one more colleague in their personal space" : "the author in their personal space",
+ project: (name: string, n: string): string => `members of project “${name}”${n}`,
+ hiddenProject: (placement: boolean, n: string): string => placement ? `members of another project${n}` : `members of a project you cannot see${n}`,
+ space: (name: string, n: string): string => `members of “${name}”${n}`,
+ hiddenSpace: (placement: boolean, n: string): string => placement ? `members of another space${n}` : `members of a space you cannot see${n}`,
+ extraPeople: (meeting: boolean, names: string): string => `${meeting ? "meeting participants" : "people listed on the record"}: ${names}`,
+ whyOwner: "You are the author: you can always open your own record, even if you are not a member of the space that holds it.",
+ whyListed: (meeting: boolean): string => `You are ${meeting ? "a meeting participant" : "listed on the record"}, so you can see it even if you are not a member of the space that holds it.`,
+ owner: (name: string, meeting: boolean): string => `${name} (${meeting ? "organizer" : "author"})`,
+ author: (name: string): string => `${name} (author)`,
+ groups: (list: string, extra: string): string => extra ? `${list}, as well as ${extra}` : list,
+ onlyYou: "Only you",
+ meetingPeople: (iAmOwner: boolean, rest: string): string => `You and ${iAmOwner ? "" : "other "}meeting participants: ${rest}`,
+ meetingOwner: (name: string, rest: string): string => rest ? `You, organizer ${name} and other meeting participants: ${rest}` : `You and meeting organizer ${name}`,
+ listed: (list: string, more: number): string => `You and ${list}${more ? ` and ${formatCount(more)} more` : ""}`,
+ withAgents: (who: string, agents: string, alone: boolean, iAmOwner: boolean, extended: boolean): string => `${who}${agents === "readers" ? (alone ? " and your AI agents" : " and their AI agents") : agents === "held" ? (iAmOwner ? " (while this record is disputed, only your AI agents can open it)" : " (unavailable to AI agents while this record is disputed)") : extended ? " (among AI agents, only your agent with extended access)" : " (without AI agents)"}`,
+ meetingDetail: "The organizer and meeting participants can see the meeting, its summary and decisions; the organizer manages participants.",
+ peopleDetail: "Only the author and people listed on the record can see it; members of the space that holds it cannot.",
+ personalDetail: (iAmOwner: boolean): string => iAmOwner ? "This record is in your personal space: colleagues cannot see it. If you leave the company, your manager can read it personally in the workspace, without agents." : "This record is in the author’s personal space: colleagues cannot see it. If the author leaves the company, their manager can read it.",
+ pending: (n: number): string => `${formatCount(n)} more meeting ${pluralEn(n, "participant will", "participants will")} gain access when they first sign in to memory.`,
+ placementsDetail: "The same file was uploaded to spaces you cannot see; their members can also see this record.",
+ heldDetail: (iAmOwner: boolean): string => iAmOwner ? "This record is marked Wrong or not for everyone in Company knowledge. While the curator reviews it, colleagues’ AI agents cannot access it. Your AI agents can open it by link, but cannot find it in search or lists." : "This record is marked Wrong or not for everyone in Company knowledge. AI agents cannot access it while the curator reviews it.",
+ extendedDetail: "Your AI agent with extended access can also read your closed records; the memory administrator issues that access.",
+};

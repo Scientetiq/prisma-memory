@@ -1,0 +1,13 @@
+{
+  "type": "entity",
+  "external_id": "deal:9001",
+  "external_version": "2026-10-06T11:00:00Z",
+  "kind": "deal",
+  "id": "9001",
+  "name": "Annual renewal 2027",
+  "occurred_at": "2026-10-06T11:00:00Z",
+  "attrs": {
+    "stage": "won",
+    "source": "crm"
+  }
+}
