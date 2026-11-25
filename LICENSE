@@ -1,0 +1,240 @@
+# Prisma Memory License 1.0
+
+**Source-available licence for the Prisma Memory software**
+
+Edition dated 24 November 2026
+
+This licence is offered by the Licensor to anyone who meets the conditions of section 3.
+
+## 1. Definitions
+
+1.1. **Licensor** means Scientetiq L.L.C-FZ, a limited liability company incorporated in the Meydan Free Zone, Dubai, United Arab Emirates, business licence number 2307377.01, with its registered office at Meydan Grandstand, 6th floor, Meydan Road, Nad Al Sheba, Dubai, United Arab Emirates. The Licensor is the owner of the copyright in the Software.
+
+1.2. **Software** means the Prisma Memory computer program in the version that the Licensor published with a reference to this licence. The Software includes:
+- source code and object code;
+- documentation;
+- data schemas;
+- configuration files;
+- preparatory materials and other materials published by the Licensor as part of the Software.
+
+Third-party components distributed in or with the Software under their own licences are not part of the Software. They are used under those licences; they are listed in the NOTICE file.
+
+The Licensor publishes certain parts of the repository — for example the connector SDK, integration templates and interface contracts — under the Apache License, Version 2.0 instead of this licence (the **Apache Modules**). A directory or file is an Apache Module only if the NOTICE file lists it under "Modules under the Apache License 2.0"; each listed directory also contains its own `LICENSE` file with the text of the Apache License, Version 2.0. The Apache Modules are not part of the Software. Your rights in them are set by the Apache License, Version 2.0 alone: they do not depend on the conditions of section 3, and the restrictions of this licence do not apply to them. The Apache License, Version 2.0 grants no rights in the Software.
+
+1.3. **Licensee** or **you** means a person who has accepted this licence under section 2 and meets the conditions of section 3.
+
+1.4. **Group** means you and every person that directly or indirectly controls you, is controlled by you, or is under common control with you. Control means any of the following:
+- holding more than 50 percent of the voting rights;
+- the right to appoint or remove the chief executive or a majority of the board of directors or of an equivalent governing body;
+- the ability otherwise, including by contract, to determine the decisions of a person.
+
+1.5. **Headcount** means the average number, over the preceding calendar year, of employees of Group members and individuals, including sole traders and self-employed persons, who regularly performed work or provided services for Group members. A calendar year runs from 1 January to 31 December. The same period applies to all Group members, regardless of their financial years.
+
+The average is the sum of the number of individuals counted on each calendar day of the calculation year, divided by the number of calendar days in that year. An employee is counted during the employment relationship; a contractor is counted during periods of regular work or services. Regularity depends on the actual relationship: the individual performs functions for the Group on an ongoing or recurring basis, rather than only completing a separate one-off assignment. One-off contractors are not counted.
+
+An individual is counted no more than once in the Group for the same day, including when working for several Group members or under both an employment contract and a services agreement. Clause 1.12 provides an exception for persons established or registered in the current year.
+
+1.6. **Revenue** means the aggregate revenue from sales of goods, work, services and rights by all Group members in the preceding calendar year, excluding transactions between Group members and VAT, GST, sales taxes or excise duties charged to customers.
+
+Revenue is determined from financial or consolidated financial statements. If statements for the relevant period are not yet available or cover a different financial year, accounting records and source documents for the relevant calendar period are used. For a sole trader or another person lawfully exempt from keeping financial accounts, sales revenue recorded under the applicable tax accounting rules is used. Loans, borrowings, capital contributions and personal transfers that are not payments for sales are excluded.
+
+Revenue in another currency is converted into US dollars at the reference exchange rate published by the central bank or monetary authority responsible for that currency, effective on 31 December of the calculation year. For current-year revenue under clause 1.12, the rate effective on the date eligibility is assessed is used. Where no rate is published for that day, the latest preceding published rate that remains applicable is used. If no direct US-dollar reference rate is available, a cross-rate through the euro may be calculated using that authority's euro reference rate and the European Central Bank's US-dollar reference rate for the same reference date. If neither method is available, another published source must be agreed with the Licensor in writing before relying on the Revenue calculation.
+
+1.7. **Qualifying Group** means a Group that meets both of the following:
+- Headcount is fewer than 100 persons; **and**
+- Revenue is less than USD 10 million.
+
+1.8. **Internal Purposes** means use of the Software by Group members for their own activities: processing their own data and documents and supporting the work of their employees and persons acting on their behalf. You may use the outputs of the Software (answers, summaries, retrieved passages) in your work for your customers, but you may not let customers work with the Software themselves — log in to it, use its user interface or its programming interfaces (API, MCP).
+
+1.9. **Providing as a Service** means letting persons outside the Group work with the Software, or with a substantial part of its functionality, themselves, including:
+- as a hosted or managed service (SaaS, managed service, hosting);
+- as part of another product or service;
+- under your own or another name (white-label).
+
+Providing as a Service is not use for Internal Purposes, whether or not a fee is charged.
+
+1.10. **Derivative** means any modified version of the Software, and any program or other work that includes the Software or any part of it, in whole or in modified form. A separate program is not a Derivative if it interacts with the Software only through the Software's published interfaces and protocols (API, MCP, connectors) and does not include code of the Software. Including an Apache Module (clause 1.2) in a program does not make that program a Derivative.
+
+1.11. **Commercial Licence** means a licence agreement with the Licensor, or with a person authorised by it, concluded separately from this licence.
+
+1.12. For a legal entity established in the current calendar year, and a sole trader registered or, where registration is not required, first commencing business in that year, the Group calculation uses the number of employees and regular contractors on the date of use instead of an annual average. It uses actual revenue from establishment, registration or commencement of business to that date instead of preceding-year revenue. That revenue is not annualised.
+
+Clauses 1.5–1.6 apply from 1 January of the following year. For the first partial calendar year, average headcount is calculated from the date of establishment, registration or commencement of business to 31 December: the sum of daily headcount is divided by the number of calendar days in that period. Revenue for that period is taken at its actual amount without annualisation. Other Group members are calculated under the ordinary rules. When combining the figures, an individual must not be counted twice for overlapping periods, and no individual's contribution to Group Headcount may exceed one.
+
+1.13. The Group consists of the persons meeting clause 1.4 on the date of use, wherever they are established or operate. Following an acquisition, disposal or other change of control, the figures are recalculated for the new Group composition from the date of that change. Each included person's figures cover the entire calculation period under clauses 1.5–1.6 or 1.12 and are not reduced in proportion to the time spent in the Group. Establishing a new entity within an existing Group does not exclude the other Group members from the calculation.
+
+1.14. Figures are compared with the thresholds without rounding down. Eligibility is determined under this licence; classification as a small or medium-sized business under national law or a public register does not, by itself, establish or exclude eligibility.
+
+## 2. Acceptance of the licence
+
+2.1. This licence is addressed only to the persons described in section 3. Its full text must be available for review before an act constituting acceptance. You accept this licence when, after being given that opportunity, you do any of the following with the Software:
+- download it;
+- install it;
+- run it;
+- copy it;
+- modify it;
+- pass on copies or make it available to the public under clause 6.3.
+
+The agreement between you and the Licensor is concluded on acceptance.
+
+2.2. If a person does not meet the conditions of section 3, that person's acts with the Software do not constitute acceptance of this licence, and that person acquires no rights in the Software.
+
+2.3. By starting to use the Software you represent to the Licensor that, as of the date you start using it, you meet the conditions of section 3. This representation is deemed repeated on each day of use, except during a transition period agreed under clause 7.1, when you represent that you comply with the terms of that written agreement.
+
+## 3. Who may use the Software free of charge
+
+3.1. Rights under this licence are granted only to the following persons:
+- a legal entity or sole trader whose Group is a Qualifying Group, for Internal Purposes;
+- an individual, for personal, educational and research purposes not connected with business activity.
+
+3.2. A legal entity or sole trader whose Group is not a Qualifying Group may ask the Licensor for permission to evaluate the Software. The Licensor states the period and terms of the evaluation in a written permission. Without such permission or a Commercial Licence, that person may not use the Software.
+
+## 4. Rights granted
+
+4.1. The Licensor grants you a non-exclusive licence to use the Software for the purposes set out in section 3 in the following ways:
+
+1. reproduction — installing, running, storing in computer memory and copying;
+2. modification and creation of Derivatives — only for your own use in accordance with section 6;
+3. distribution of unmodified copies and making the unmodified Software available to the public — only in accordance with clause 6.3.
+
+4.2. The licence is granted **free of charge**.
+
+4.3. Territory: worldwide.
+
+4.4. Term: the full term of the copyright in the Software, unless the licence terminates earlier under section 9.
+
+4.5. This licence grants no rights beyond the use it expressly permits. Further rights may be granted under a Commercial Licence or written evaluation permission under clause 3.2. Rights and exceptions provided directly by applicable law remain available to the extent required by that law.
+
+4.6. Group members may use the Software accepted by any one of them for the Internal Purposes of the whole Group. Each Group member that uses the Software is deemed to have accepted this licence.
+
+## 5. What requires a Commercial Licence
+
+Without a Commercial Licence you may not:
+
+5.1. use the Software as a legal entity or sole trader whose Group is not a Qualifying Group — except for evaluation with the Licensor's permission (clause 3.2); an individual's personal use under clause 3.1 does not depend on the size of the Group;
+
+5.2. Provide the Software as a Service — **including if your Group is a Qualifying Group**;
+
+5.3. sell, rent out or otherwise distribute the Software for a fee;
+
+5.4. distribute Derivatives or otherwise give them to persons outside your Group;
+
+5.5. grant sublicences;
+
+5.6. remove or alter any copyright, licence or Licensor notices contained in the Software;
+
+5.7. add to the Software or a Derivative any means specifically designed to violate the restrictions of this licence or conceal such a violation. Ordinary information security, confidentiality and network isolation measures are not, by themselves, a violation.
+
+## 6. Modifying the Software and passing on copies
+
+6.1. You may modify the Software and create Derivatives only for use for the purposes set out in section 3, including within your Group.
+
+6.2. You may not distribute or publish Derivatives or otherwise give them to persons outside your Group.
+
+6.3. You may pass on the unmodified Software to other persons and make it available for download on the Internet only together with the full text of this licence and the NOTICE file, free of charge and without additional terms. The recipient receives rights directly from the Licensor if the recipient meets the conditions of section 3 and accepts this licence under section 2.
+
+6.4. You may engage a contractor to install, configure, modify and administer the Software solely on your behalf and for your benefit on your infrastructure or infrastructure under your control. Such contractor access to the Software, including Derivatives, is not Providing as a Service, sublicensing or a transfer of a Derivative outside the Group. The contractor must comply with the applicable restrictions of this licence and may not use the copy independently, give it to others or retain it after the engagement. You must ensure the contractor complies with these conditions. A contractor hosting the Software to provide it to customers as a service does not fall within this exception.
+
+## 7. Compliance with the free-use conditions
+
+7.1. If you use the Software as a legal entity or sole trader and your Group ceases to be a Qualifying Group — including because you have become part of a larger group — further use of the Software is permitted only under a Commercial Licence. If you need time to move to a Commercial Licence, contact the Licensor; a transition period may be agreed in writing.
+
+7.2. If the Licensor has grounds to believe that your Group is not a Qualifying Group, it may send you a request if you use the Software as a legal entity or sole trader. Within 30 calendar days after receiving the request, you must provide a written confirmation, signed by an authorised person, that your Group is a Qualifying Group, stating its Headcount and Revenue. If the confirmation is insufficient, the Licensor may request supporting documents relevant to calculating Headcount and Revenue; you must respond within 30 calendar days after receiving that request. If no response is received by the deadline, the Licensor will send a repeated request warning of the consequences under clause 9.2. The Licensor may also check information about Group members in public registers and other public sources. The Licensor will keep the information confidential and use it only to verify compliance with this licence.
+
+7.3. The Licensor publishes explanations of this licence (FAQ) with examples. The Licensor will not make claims regarding use that the explanations expressly describe as permitted at the time of such use. If the explanations conflict with this licence, the licence prevails.
+
+## 8. Liability for use beyond the licence
+
+8.1. Use of copyright-protected parts of the Software beyond the rights granted, including after termination, without another lawful basis may constitute copyright infringement under applicable law. Subject to that law, the following uses are outside the rights granted unless authorised by a separate agreement, written permission from the Licensor or law:
+- use by a person who does not meet the conditions of section 3;
+- use after your Group has ceased to be a Qualifying Group, without a Commercial Licence and without an agreed transition period;
+- Providing as a Service;
+- distribution of Derivatives.
+
+The Licensor may pursue the remedies available to a copyright owner under applicable law and may enforce its contractual rights under this licence. Statutory damages or compensation are available only where applicable law provides for them and its requirements are met.
+
+8.2. If an agreement under this licence was concluded, for a breach of clauses 5.1–5.4 you must pay an amount equal to the fee for the relevant use, to the extent enforceable under applicable law. For Internal Purposes by the Group category described in clause 14.2, the base fee in that clause applies. Otherwise, the public price list in force when the breach began applies.
+
+For a continuing breach, the fee is prorated to the number of calendar days of the breach relative to the period covered by the fee. An annual fee is calculated separately for each calendar year of the breach: the annual fee is multiplied by the number of breach days in that year and divided by the number of calendar days in that year. If the Group's category changes, the periods are calculated separately for each category using the tariffs in force when the breach began. A one-off transfer requires a separate tariff for that transfer.
+
+The price list must unambiguously determine the total amount for the relevant use and Group category, including the treatment of applicable VAT, GST or similar transaction taxes. A price stated as "from" or "by agreement" without a determinate calculation formula does not support a payment under this clause. Breaches of clauses 5.2–5.4 require a separate public tariff for the relevant use; an internal-use tariff cannot be substituted. If no applicable determinate tariff exists, no contractual payment under this clause is due for that breach; remedies available under law remain unaffected.
+
+Later price changes do not increase the amount. The payment is credited against damages or compensation for the same breach; double recovery is not permitted. Payment does not authorise continued use. If no agreement was concluded, this contractual payment does not apply. Nothing in this clause overrides mandatory limits on contractual remedies or creates an entitlement to a payment prohibited by applicable law.
+
+8.3. You are liable for any inaccuracy of the representation under clause 2.3.
+
+8.4. Your obligations under sections 5 to 8 apply to the whole Software. If any part is held not to be protected by copyright, obligations concerning that part remain contractual only where an agreement was concluded and to the extent permitted by applicable law. This clause creates no copyright in unprotected material and does not bind persons who are not parties to the agreement.
+
+## 9. Termination
+
+9.1. This licence terminates automatically, without notice, when you breach its terms, except where clause 9.2 provides a specific procedure. Failure to provide information under clause 7.2 results in termination only under that procedure. This clause applies to the extent permitted by applicable law.
+
+9.2. The licence also terminates automatically:
+- when you use the Software as a legal entity or sole trader and your Group ceases to be a Qualifying Group, unless a Commercial Licence has been concluded or a transition period has been agreed under clause 7.1; if a transition period has been agreed, the free licence terminates at its end unless a Commercial Licence has been concluded;
+- if you fail to provide the confirmation or supporting documents requested under clause 7.2 within 30 calendar days after receiving a repeated request warning of termination.
+
+9.3. On termination you must stop using the Software and destroy your copies of it, except copies you are required by law to retain. Termination does not release liability for breaches already committed or end the Licensor's confidentiality obligation under clause 7.2.
+
+9.4. Termination of this licence for one Licensee does not terminate the rights of persons who lawfully received the unmodified Software from that Licensee and who meet the conditions of section 3.
+
+## 10. Patents
+
+The Licensor grants you the right to use, as part of the Software, inventions and other patentable subject matter owned or licensable by the Licensor, to the extent necessary to use the Software under this licence. Where a separate written agreement, identification of particular patents or registration is required, the right arises only after those requirements are met; this section does not replace them. The right terminates if you claim against anyone that the Software infringes your patent, subject to mandatory legal requirements.
+
+## 11. Trademarks
+
+This licence grants no rights in the trademarks, names or other designations of the Licensor, including the name "Prisma Memory", except to state the origin of the Software.
+
+## 12. Data and telemetry
+
+12.1. The Software does not send the Licensor any usage information, user data or other data, and does not contain activation means, licence keys or remote control.
+
+12.2. You are responsible for the lawfulness of data processing when using the Software. Your status as a data controller or processor is determined by your actual role and applicable law. The Licensor does not receive the data processed in the Software under this licence; information sent under clause 7.2 is handled separately to verify compliance.
+
+## 13. Warranty and liability of the Licensor
+
+13.1. The Software is provided "as is". The Licensor does not warrant that it is fit for your purposes or that it works without errors.
+
+13.2. To the extent permitted by law, the Licensor is not liable for any loss arising from the use of, or inability to use, the Software. This limitation does not apply to intentional breach or to any other liability that cannot be excluded by law.
+
+## 14. Commercial Licence and contacting the Licensor
+
+14.1. The uses listed in section 5 are available under a Commercial Licence. How to obtain one, the price list and the Licensor's contact details — for a Commercial Licence, evaluation permission and agreeing a transition period — are published at https://prismamemory.com/commercial.
+
+14.2. For a Group with Headcount of fewer than 100 persons and Revenue of USD 10 million or more, the base fee for the right to use the Software for Internal Purposes is USD 6,000 for 12 months. This is the total fee, including any VAT, GST or similar transaction tax the Licensor is required to charge. Taxes that the Licensee must self-assess or withhold under mandatory law remain governed by that law. For the calculation under clause 8.2, the base fee in the version of this licence applicable when the breach began is used; individual discounts or other terms of separate commercial agreements do not change that calculation.
+
+14.3. Terms for Providing as a Service, distributing the Software for a fee or transferring Derivatives outside the Group are set out in separate commercial agreements. The base fee for Internal Purposes does not cover those rights. Stating a fee in this licence or a price list does not itself grant rights beyond section 3; a Commercial Licence must be concluded for those rights.
+
+## 15. Contributions
+
+The Licensor does not accept changes from third parties for inclusion in the Software, except under a separate agreement. Bug reports and suggestions are accepted as described in the CONTRIBUTING file.
+
+## 16. Changes to this licence
+
+16.1. The Licensor may change this licence at any time by publishing a new version at https://prismamemory.com/license.
+
+16.2. The new version applies:
+- to versions of the Software published after it, from the moment of publication;
+- to your further use of previously obtained versions of the Software, 30 days after the date the new version is published.
+
+16.3. If you do not agree with a new version that applies to previously obtained Software under clause 16.2, you must stop using it, except as provided in clause 16.4.
+
+16.4. For a Licensee whose use is not connected with business activity, changes to an existing agreement require consent unless applicable law permits otherwise. Until consent is given, previously obtained Software remains subject to the previous terms; refusal of the new terms does not by itself terminate that licence. In all cases, new terms do not change the legal treatment of use that occurred before those terms took effect for the Licensee.
+
+16.5. Notwithstanding clauses 16.2 and 16.3, a new version of this licence does not make chargeable the use of a version of the Software that you obtained before the new version was published. A person who met the conditions of section 3 of the licence version under which that version of the Software was obtained may continue to use it free of charge for the purposes set out in that section for as long as that person continues to meet those conditions. Those conditions are read together with the definitions in section 1 of that licence version. In all other respects the new version applies to that use as provided in clauses 16.2 to 16.4.
+
+## 17. Export control
+
+You are responsible for complying with the export control requirements and other restrictions that apply to you when you use the Software.
+
+## 18. Governing law and disputes
+
+Disputes are resolved by the courts of the jurisdiction where the defendant has its principal place of business or, for an individual acting outside business activity, habitual residence, under the law of that jurisdiction. This does not override mandatory rules on applicable law, jurisdiction or protection of individuals, or the application of the law of the country where copyright protection is sought.
+
+## 19. Severability
+
+If any provision of this licence is held invalid or unenforceable, the remaining provisions remain in force. The invalid provision is replaced by the applicable rule closest to it in meaning.
+
+---
+
+Prisma Memory License 1.0 · Scientetiq L.L.C-FZ · https://prismamemory.com/license

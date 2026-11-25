@@ -1,0 +1,60 @@
+# NOTICE
+
+## Prisma Memory
+
+Copyright © 2026 Scientetiq L.L.C-FZ. All rights reserved except as granted by the licence.
+
+Prisma Memory is distributed under the **Prisma Memory License 1.0** (see the `LICENSE` file). It is source-available software, not open source. It is free of charge for groups with fewer than 100 people and less than USD 10 million in annual revenue for their internal purposes, and for individuals for personal, educational and research purposes. Other uses require a commercial licence: https://prismamemory.com/.
+
+Licensor: Scientetiq L.L.C-FZ, Meydan Grandstand, 6th floor, Meydan Road, Nad Al Sheba, Dubai, United Arab Emirates. Contact: prisma-memory@scientetiq.com.
+
+## Modules under the Apache License 2.0
+
+The parts of this repository listed below are published by Scientetiq L.L.C-FZ under the Apache License, Version 2.0, and not under the Prisma Memory License 1.0 (clause 1.2 of that licence). Copyright © 2026 Scientetiq L.L.C-FZ. Each listed directory contains a `LICENSE` file with the text of the Apache License, Version 2.0.
+
+| Path | What it is |
+| --- | --- |
+| `packages/connectors/templates/` | Integration templates for n8n, Zapier and Make |
+| `contracts/connectors/` | Connector interface: OpenAPI description, schemas and examples |
+| `contracts/document-engine/` | Document engine interface: OpenAPI description, schemas and examples |
+| `contracts/export/` | Export format: manifest and record schemas with examples |
+| `contracts/mcp-tools.json` | Description of the MCP tools |
+| `contracts/openapi-ingest.yaml` | Description of the REST API |
+
+Everything else in this repository, except the third-party components listed below, is the Software under the Prisma Memory License 1.0.
+
+## Third-party components
+
+The components listed below are not part of the Software as defined in the Prisma Memory License 1.0. They may be included in or downloaded with the distribution and are used under their own licences. Full licence texts are in `THIRD-PARTY-NOTICES.md` and the `third_party_licenses/` directory.
+
+### Included in this repository
+
+| Component | Licence | Where |
+| --- | --- | --- |
+| Inter typeface, by Rasmus Andersson: two font files (Latin and Cyrillic subsets) for weights 400, 500 and 600 | SIL Open Font License 1.1 | `packages/admin/src/app/fonts.css` |
+| Lucide icons (path data), with portions derived from Feather | ISC, and MIT for the Feather portions | `packages/admin/src/components/icons.tsx`, `packages/admin/src/app/icon.svg` |
+| QR Code generator library, by Project Nayuki (abridged port) | MIT | `packages/shared/src/qr-encode.ts` |
+| Unicode Character Database 15.1.0 (derived tables) | Unicode License v3 | `packages/shared/src/pipeline-text/unicode-data.ts` |
+| SequenceMatcher from Python's difflib module (CPython 3.13), ported to TypeScript, and the float_divmod rule | Python Software Foundation License Version 2 | packages/shared/src/pipeline-text/difflib.ts, pytext.ts |
+
+### Installed by the build from the lock file
+
+The build on your server installs the packages pinned in `pnpm-lock.yaml` from the public npm registry. The production set is 144 packages: MIT 117, Apache-2.0 AND MIT 4, ISC 8, Apache-2.0 5, BSD-3-Clause 4, MIT-0 2, CC-BY-4.0 1 (`caniuse-lite`), BlueOak-1.0.0 1, 0BSD 1, MIT or CC0-1.0 1. The full list, with the licence of each package, is in `third_party_licenses/npm-production-packages.md`.
+
+### Pulled by the build on your server
+
+We publish no ready images. `deploy/compose/setup` pulls these base images by digest and builds on your server; their contents are under their publishers' licences.
+
+| Component | Licence | Where |
+| --- | --- | --- |
+| Node.js 22 on Debian bookworm (`node:22-bookworm-slim`) | Node.js: MIT; Debian packages: their own licences | `deploy/compose/images/app.Dockerfile`, `web.Dockerfile`, `demo-models.Dockerfile` |
+| PostgreSQL 16 with pgvector (`pgvector/pgvector:pg16`) | PostgreSQL License | `deploy/compose/images/db.Dockerfile` |
+| Caddy 2 on Alpine (`caddy:2.11.9-alpine`) | Caddy: Apache-2.0; Alpine packages: their own licences | `deploy/compose/images/proxy.Dockerfile` |
+| VersityGW 1.11.0 (`versity/versitygw`) | Apache-2.0 | `deploy/compose/compose.yaml` |
+| pnpm 10, through corepack | MIT | `package.json` |
+
+`deploy/host/prepare-host.sh` installs packages of your operating system (Docker Engine, the firewall and update tools) from that system's own repositories, under their own licences.
+
+## Trademarks
+
+Prisma Memory is a name of Scientetiq L.L.C-FZ. All other product names and brands mentioned in this repository are the property of their respective owners; their use does not imply endorsement.
